@@ -87,8 +87,34 @@
         <button id="sound-toggle-btn" onclick="toggleSound()" class="btn-surface px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold cursor-pointer flex items-center gap-2">
             <span id="sound-icon">🔊</span> <span id="sound-label">Sonido: Activado</span>
         </button>
+
+        <button id="settings-toggle-btn" onclick="toggleSettingsPanel()" class="btn-surface px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold cursor-pointer flex items-center gap-2">
+            <span>⚙️</span> Personalizar
+        </button>
     </footer>
 
+    <aside id="settings-panel" class="settings-panel hidden w-full max-w-4xl mx-auto mt-3 p-4 rounded-2xl border surface-card" aria-label="Configuración visual">
+        <div class="flex items-center justify-between mb-3">
+            <h2 class="font-epic text-accent-gold text-sm font-bold">Configuración de batalla</h2>
+            <button onclick="toggleSettingsPanel()" class="text-muted-ivory text-lg" aria-label="Cerrar configuración">×</button>
+        </div>
+        <div class="settings-grid">
+            <label>Tema
+                <select id="theme-select" class="settings-control">
+                    <option value="ink">Tinta Granate</option><option value="parchment">Pergamino</option><option value="midnight">Noche Azul</option>
+                </select>
+            </label>
+            <label>Calidad de partículas
+                <select id="quality-select" class="settings-control"><option value="high">Alta</option><option value="medium">Media</option><option value="low">Baja</option></select>
+            </label>
+            <label class="settings-check"><input id="particles-toggle" type="checkbox"> Partículas y tinta</label>
+            <label class="settings-check"><input id="environment-toggle" type="checkbox"> Ambiente, hojas y brasas</label>
+            <label class="settings-check"><input id="motion-toggle" type="checkbox"> Reducir movimiento</label>
+            <label>Volumen <input id="volume-range" class="w-full" type="range" min="0" max="1" step="0.05"></label>
+        </div>
+    </aside>
+
+    <script src="js/config.js"></script>
     <script src="js/battle-chess.js"></script>
 </body>
 </html>

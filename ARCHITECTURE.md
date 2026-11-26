@@ -2,6 +2,7 @@
 
 - `index.html`: estructura semántica, controles y dependencias externas.
 - `styles.css`: diseño, responsive layout y animaciones CSS.
+- `js/config.js`: temas, preferencias persistentes y configuración visual/audio.
 - `js/battle-chess.js`: motor de ajedrez, render Canvas, piezas, partículas, audio, IA, temporizador e interacción.
 
 ## Punto de entrada

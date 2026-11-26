@@ -4,9 +4,57 @@
          * ============================================================================
          */
 
+        const appConfig = window.BATTLE_CHESS_CONFIG || {
+            theme: 'ink', quality: 'high', particles: true, environment: true, reducedMotion: false, volume: 0.8,
+            themes: { ink: { boardLight: '#E6D2B8', boardDark: '#522129' } }, save() {}
+        };
+
         const canvas = document.getElementById('chessCanvas');
         const ctx = canvas.getContext('2d');
         const container = document.getElementById('game-container');
+
+        function applySettings() {
+            document.body.dataset.theme = appConfig.theme;
+            const themeSelect = document.getElementById('theme-select');
+            const qualitySelect = document.getElementById('quality-select');
+            const particlesToggle = document.getElementById('particles-toggle');
+            const environmentToggle = document.getElementById('environment-toggle');
+            const motionToggle = document.getElementById('motion-toggle');
+            const volumeRange = document.getElementById('volume-range');
+            if (themeSelect) themeSelect.value = appConfig.theme;
+            if (qualitySelect) qualitySelect.value = appConfig.quality;
+            if (particlesToggle) particlesToggle.checked = appConfig.particles;
+            if (environmentToggle) environmentToggle.checked = appConfig.environment;
+            if (motionToggle) motionToggle.checked = appConfig.reducedMotion;
+            if (volumeRange) volumeRange.value = appConfig.volume;
+            if (window.Tone && Tone.Destination) {
+                Tone.Destination.volume.value = appConfig.volume <= 0 ? -Infinity : -28 + appConfig.volume * 28;
+            }
+        }
+
+        function toggleSettingsPanel() {
+            document.getElementById('settings-panel').classList.toggle('hidden');
+        }
+
+        function bindSettings() {
+            const bind = (id, key, transform = v => v) => {
+                const el = document.getElementById(id);
+                if (!el) return;
+                el.addEventListener('change', () => {
+                    appConfig[key] = transform(el.type === 'checkbox' ? el.checked : el.value);
+                    appConfig.save();
+                    applySettings();
+                    if (key === 'particles' && !appConfig.particles) particles = [];
+                });
+            };
+            bind('theme-select', 'theme');
+            bind('quality-select', 'quality');
+            bind('particles-toggle', 'particles');
+            bind('environment-toggle', 'environment');
+            bind('motion-toggle', 'reducedMotion');
+            bind('volume-range', 'volume', Number);
+            applySettings();
+        }
 
         // Instancia de reglas oficiales
         let chess = new Chess();
@@ -224,6 +272,9 @@
         }
 
         function spawnParticles(x, y, color, count = 15, speedScale = 1, type = 'spark') {
+            if (!appConfig.particles) return;
+            const qualityScale = { high: 1, medium: 0.68, low: 0.38 }[appConfig.quality] || 1;
+            count = Math.max(1, Math.round(count * qualityScale));
             for (let i = 0; i < count; i++) {
                 const angle = Math.random() * Math.PI * 2;
                 const speed = (1 + Math.random() * 4) * speedScale;
@@ -381,6 +432,7 @@
         }
 
         function updateAnimations(dt) {
+            dt *= appConfig.reducedMotion ? 0.35 : 1;
             globalTime += dt;
 
             cameraZoom.scale += (cameraZoom.targetScale - cameraZoom.scale) * Math.min(1, dt * 6);
@@ -677,7 +729,8 @@
                     const isLight = (row + col) % 2 === 0;
                     const sqName = coordsToSquare(col, row);
 
-                    ctx.fillStyle = isLight ? '#E6D2B8' : '#522129';
+                    const boardTheme = appConfig.themes[appConfig.theme] || appConfig.themes.ink;
+                    ctx.fillStyle = isLight ? boardTheme.boardLight : boardTheme.boardDark;
                     ctx.fillRect(col * sqSize, row * sqSize, sqSize, sqSize);
 
                     if (lastMove && (lastMove.from === sqName || lastMove.to === sqName)) {
@@ -742,7 +795,7 @@
 
             // Textura de papel, manchas de tinta y cuadrícula dibujada a mano.
             ctx.save();
-            ctx.globalAlpha = 0.12;
+            ctx.globalAlpha = appConfig.environment ? 0.12 : 0;
             ctx.strokeStyle = chess.turn() === 'w' ? '#8B765D' : '#6E7586';
             ctx.lineWidth = Math.max(0.45, sqSize * 0.008);
             for (let row = 0; row < 8; row++) {
@@ -756,7 +809,7 @@
                     ctx.stroke();
                 }
             }
-            ctx.globalAlpha = 0.28;
+            ctx.globalAlpha = appConfig.environment ? 0.28 : 0;
             ctx.strokeStyle = chess.turn() === 'w' ? '#7A5D42' : '#697385';
             ctx.lineWidth = Math.max(0.8, sqSize * 0.012);
             for (let i = 0; i <= 8; i++) {
@@ -765,7 +818,7 @@
                 ctx.beginPath(); ctx.moveTo(0, i * sqSize - wobble); ctx.lineTo(size, i * sqSize + wobble); ctx.stroke();
             }
             // Manchas en las esquinas del pergamino.
-            ctx.globalAlpha = 0.16;
+            ctx.globalAlpha = appConfig.environment ? 0.16 : 0;
             ctx.fillStyle = '#111111';
             for (const [sx, sy, rot] of [[0.06,0.06,-0.25],[0.94,0.08,0.35],[0.08,0.92,0.2],[0.92,0.9,-0.3]]) {
                 ctx.save(); ctx.translate(sx * size, sy * size); ctx.rotate(rot);
@@ -786,7 +839,7 @@
 
             // Hojas de papel que cruzan el campo con una corriente de viento.
             ctx.save();
-            ctx.globalAlpha = 0.48;
+            ctx.globalAlpha = appConfig.environment ? 0.48 : 0;
             ctx.strokeStyle = '#F5EBDD';
             ctx.fillStyle = '#E8D8C2';
             for (const leaf of windLeaves) {
@@ -804,7 +857,7 @@
                 const ex = ((ember.x + globalTime * ember.speed * 0.018) % 1) * size;
                 const ey = ((ember.y - globalTime * ember.speed * 0.026 + 1) % 1) * size;
                 const flicker = 0.28 + (Math.sin(globalTime * 3 + ember.seed) + 1) * 0.18;
-                ctx.globalAlpha = flicker;
+                ctx.globalAlpha = appConfig.environment ? flicker : 0;
                 ctx.fillStyle = ember.seed % 2 ? '#E5A853' : '#FDF3E7';
                 ctx.beginPath();
                 ctx.arc(ex, ey, ember.size * (0.7 + Math.sin(globalTime * 4 + ember.seed) * 0.25), 0, Math.PI * 2);
@@ -1877,6 +1930,8 @@
         }
 
         window.onload = function () {
+            applySettings();
+            bindSettings();
             resizeCanvas();
             updateUI();
             requestAnimationFrame(gameLoop);
