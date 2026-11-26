@@ -33,6 +33,7 @@
         let globalTime = 0;
         let moveTrails = [];
         let impactRings = [];
+        let victoryState = null;
         let ambientEmbers = Array.from({ length: 34 }, (_, i) => ({
             seed: i * 17.31,
             x: (i * 0.6180339887) % 1,
@@ -407,6 +408,9 @@
                         chess.in_checkmate() ? '¡JAQUE MATE!' : '¡JAQUE!', '#F8B4B4');
                     triggerShake(chess.in_checkmate() ? 12 : 6);
                     showCombatBanner(chess.in_checkmate() ? '¡El rey ha sido acorralado!' : '¡JAQUE! El rey está bajo ataque');
+                    if (chess.in_checkmate()) {
+                        victoryState = { square: moveObj.to, color: moveObj.color, type: moveObj.piece };
+                    }
                 }
             } else if (!moveObj.captured) {
                 const target = squareToCoords(moveObj.to);
@@ -603,7 +607,8 @@
                         isSelected: selectedSquare === sqName,
                         facing: piece.color === 'w' ? 1 : -1,
                         idleSeed: (col * 13 + row * 29) % 100,
-                        square: sqName
+                        square: sqName,
+                        victoryPose: Boolean(victoryState && victoryState.square === sqName)
                     };
 
                     if (activeAnim && activeAnim.isCapture && activeAnim.moveObj.to === sqName && activeAnim.phase === 'clash') {
@@ -635,7 +640,7 @@
                 let cy = (curRow + 0.5) * sqSize;
 
                 if (moveObj.piece === 'n' && phase === 'approach') {
-                    const jumpHeight = Math.sin((progress / (activeAnim.isCapture ? 0.82 : 1)) * Math.PI) * sqSize * 0.65;
+                    const jumpHeight = Math.sin((progress / (activeAnim.isCapture ? 0.82 : 1)) * Math.PI) * sqSize * 0.9;
                     cy -= jumpHeight;
                 }
 
@@ -657,9 +662,10 @@
                     sqSize,
                     {
                         walkCycle: phase === 'approach' ? progress * 3 : 0,
-                        attackProgress: attackSwing,
+                        attackProgress: phase === 'approach' && moveObj.piece === 'q' ? progress * 0.9 : attackSwing,
                         scale: phase === 'clash' ? 1 + attackSwing * 0.18 : 1.05,
-                        facing: toCol >= fromCol ? 1 : -1
+                        facing: toCol >= fromCol ? 1 : -1,
+                        idleSeed: (fromCol * 13 + fromRow * 29) % 100
                     }
                 );
             }
@@ -725,26 +731,39 @@
         function drawCharacter(ctx, piece, cx, cy, size, state = {}) {
             const {
                 walkCycle = 0,
-                attackProgress = 0,
+                attackProgress: rawAttackProgress = 0,
                 hitFlash = 0,
                 scale = 1,
                 facing = 1,
                 isSelected = false,
                 alpha = 1,
-                idleSeed = 0
+                idleSeed = 0,
+                victoryPose = false
             } = state;
+            const attackProgress = victoryPose ? 1 : rawAttackProgress;
 
             ctx.save();
             ctx.globalAlpha = alpha;
 
-            const breath = Math.sin(globalTime * 4 + cx * 0.1) * (size * 0.02);
-            const stepBounce = Math.abs(Math.sin(walkCycle * Math.PI * 2)) * (size * 0.14);
+            const breathing = {
+                p: { rate: 3.8, amp: 0.010 },
+                n: { rate: 2.7, amp: 0.016 },
+                b: { rate: 2.2, amp: 0.022 },
+                r: { rate: 1.45, amp: 0.012 },
+                q: { rate: 1.8, amp: 0.026 },
+                k: { rate: 1.25, amp: 0.030 }
+            }[piece.type] || { rate: 2.4, amp: 0.018 };
+            const breath = Math.sin(globalTime * breathing.rate + cx * 0.1 + idleSeed) * size * breathing.amp;
+            const stepAmount = piece.type === 'p' ? 0.07 : (piece.type === 'n' ? 0.18 : 0.14);
+            const stepBounce = Math.abs(Math.sin(walkCycle * Math.PI * 2)) * (size * stepAmount);
             const idleWave = Math.sin(globalTime * 1.7 + idleSeed) * size * 0.012;
             const idleTilt = Math.sin(globalTime * 1.25 + idleSeed) * 0.018;
-            const tilt = Math.sin(walkCycle * Math.PI * 2) * 0.1 + idleTilt;
+            const damageShake = hitFlash > 0 ? Math.sin(globalTime * 58 + idleSeed) * size * 0.045 : 0;
+            const groundStomp = piece.type === 'r' && walkCycle > 0 ? Math.max(0, Math.sin(walkCycle * Math.PI * 2)) : 0;
+            const tilt = Math.sin(walkCycle * Math.PI * 2) * (piece.type === 'p' ? 0.055 : 0.1) + idleTilt;
 
-            ctx.translate(cx, cy - stepBounce + idleWave);
-            ctx.scale(scale, scale);
+            ctx.translate(cx + damageShake, cy - stepBounce + idleWave);
+            ctx.scale(scale * (1 + groundStomp * 0.045), scale * (1 - groundStomp * 0.065));
 
             // Sombra en el suelo
             ctx.save();
@@ -754,6 +773,17 @@
             ctx.ellipse(0, 0, size * 0.3, size * 0.1, 0, 0, Math.PI * 2);
             ctx.fill();
             ctx.restore();
+
+            if (piece.type === 'r' && groundStomp > 0) {
+                ctx.save();
+                ctx.globalAlpha = groundStomp * 0.48;
+                ctx.strokeStyle = isSelected ? '#E5A853' : '#111111';
+                ctx.lineWidth = Math.max(1.5, size * 0.018);
+                ctx.beginPath();
+                ctx.ellipse(0, size * 0.36, size * (0.28 + groundStomp * 0.16), size * 0.07, 0, 0, Math.PI * 2);
+                ctx.stroke();
+                ctx.restore();
+            }
 
             // Aura si está seleccionada
             if (isSelected) {
@@ -783,9 +813,15 @@
             }
 
             ctx.rotate(tilt);
+            if (victoryPose) {
+                ctx.translate(0, -size * 0.055);
+                ctx.rotate(-facing * 0.08);
+            }
 
             const isWhite = piece.color === 'w';
             const r = size * 0.38;
+            const capeWave = Math.sin(globalTime * 2.4 + idleSeed) * r * 0.07
+                + (attackProgress * r * 0.12);
 
             // Paleta inspirada en la imagen de referencia, diferenciando Reino Marfil (w) y Orden Granate (b)
             const bodyMain = hitFlash > 0 ? '#FFFFFF' : (isWhite ? '#F7EFE2' : '#4A4E5A');
@@ -1071,7 +1107,7 @@
                 // Báculo pastoral a la derecha
                 ctx.save();
                 ctx.translate(r * 0.36, r * 0.12);
-                ctx.rotate(attackProgress * 0.45);
+                ctx.rotate(-0.16 + attackProgress * 1.15);
                 ctx.strokeStyle = goldTrim;
                 ctx.lineWidth = Math.max(2, size * 0.032);
                 ctx.beginPath();
@@ -1104,7 +1140,7 @@
                 ctx.fillStyle = bodyMain;
                 ctx.beginPath();
                 ctx.moveTo(-r * 0.16, -r * 0.08);
-                ctx.quadraticCurveTo(-r * 0.44, r * 0.25, -r * 0.48, r * 0.74);
+                ctx.quadraticCurveTo(-r * 0.44 + capeWave, r * 0.25, -r * 0.48 + capeWave, r * 0.74);
                 ctx.lineTo(-r * 0.28, r * 0.74);
                 ctx.quadraticCurveTo(-r * 0.2, r * 0.32, -r * 0.12, r * 0.1);
                 ctx.closePath();
@@ -1113,7 +1149,7 @@
 
                 ctx.beginPath();
                 ctx.moveTo(r * 0.16, -r * 0.08);
-                ctx.quadraticCurveTo(r * 0.44, r * 0.25, r * 0.48, r * 0.74);
+                ctx.quadraticCurveTo(r * 0.44 - capeWave, r * 0.25, r * 0.48 - capeWave, r * 0.74);
                 ctx.lineTo(r * 0.28, r * 0.74);
                 ctx.quadraticCurveTo(r * 0.2, r * 0.32, r * 0.12, r * 0.1);
                 ctx.closePath();
@@ -1196,9 +1232,9 @@
                 ctx.fillStyle = accentCloth;
                 ctx.beginPath();
                 ctx.moveTo(-r * 0.46, r * 0.74);
-                ctx.quadraticCurveTo(-r * 0.28, r * 0.15, -r * 0.22, -r * 0.14);
+                ctx.quadraticCurveTo(-r * 0.28 + capeWave, r * 0.15, -r * 0.22 + capeWave * 0.5, -r * 0.14);
                 ctx.lineTo(r * 0.22, -r * 0.14);
-                ctx.quadraticCurveTo(r * 0.28, r * 0.15, r * 0.46, r * 0.74);
+                ctx.quadraticCurveTo(r * 0.28 - capeWave, r * 0.15, r * 0.46 - capeWave * 0.5, r * 0.74);
                 ctx.closePath();
                 ctx.fill();
                 ctx.stroke();
@@ -1255,7 +1291,7 @@
                 // Cetro a la izquierda
                 ctx.save();
                 ctx.translate(-r * 0.38, r * 0.14);
-                ctx.rotate(-0.15 - attackProgress * 0.75);
+                ctx.rotate(-0.15 - attackProgress * 0.75 + Math.sin(globalTime * 1.5 + idleSeed) * 0.07);
                 ctx.strokeStyle = goldTrim;
                 ctx.beginPath();
                 ctx.moveTo(0, r * 0.52);
@@ -1499,6 +1535,7 @@
             floatingTexts = [];
             moveTrails = [];
             impactRings = [];
+            victoryState = null;
             rapidStarted = false;
             rapidClock = { w: 180, b: 180 };
             cameraZoom = { scale: 1, targetScale: 1, focusX: 0.5, focusY: 0.5 };
