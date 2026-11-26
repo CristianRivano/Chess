@@ -271,7 +271,6 @@
                 }).toDestination();
                 synthExplosion.volume.value = -4;
 
-                // Texturas sonoras: roce de papel para el desplazamiento y trazo seco de tinta para el combate.
                 synthPaper = new Tone.NoiseSynth({
                     noise: { type: 'pink' },
                     envelope: { attack: 0.005, decay: 0.16, sustain: 0, release: 0.03 }
@@ -384,26 +383,6 @@
         }
 
         function findKingSquare(color) {
-            // Halo persistente: mientras haya jaque, el rey respira dentro de una zona de peligro.
-            if (!activeAnim && chess.in_check()) {
-                const checkedKing = findKingSquare(chess.turn());
-                if (checkedKing) {
-                    const danger = squareToCoords(checkedKing);
-                    const dx = (danger.col + 0.5) * sqSize;
-                    const dy = (danger.row + 0.5) * sqSize;
-                    ctx.save();
-                    ctx.globalAlpha = 0.22 + (Math.sin(globalTime * 8) + 1) * 0.12;
-                    ctx.strokeStyle = '#F05D5E';
-                    ctx.lineWidth = Math.max(2, sqSize * 0.035);
-                    ctx.shadowColor = '#F05D5E';
-                    ctx.shadowBlur = sqSize * 0.22;
-                    ctx.beginPath();
-                    ctx.arc(dx, dy, sqSize * (0.38 + Math.sin(globalTime * 5) * 0.035), 0, Math.PI * 2);
-                    ctx.stroke();
-                    ctx.restore();
-                }
-            }
-
             const board = chess.board();
             for (let row = 0; row < 8; row++) {
                 for (let col = 0; col < 8; col++) {
@@ -448,7 +427,7 @@
             };
 
             addMoveTrail(fromCoords.col, fromCoords.row, toCoords.col, toCoords.row,
-                moveObj.color === 'w' ? '#F7F1E5' : '#C9863B');
+                moveObj.color === 'w' ? '#FDF3E7' : '#E5A853');
             if (rapidMode) rapidStarted = true;
             playSound('paper');
 
@@ -561,7 +540,7 @@
                     }
                     triggerShake(10);
                     addImpactRing(activeAnim.toCol, activeAnim.toRow,
-                        pType === 'b' || pType === 'q' ? '#E5A853' : '#F7F1E5');
+                        pType === 'b' || pType === 'q' ? '#E5A853' : '#FDF3E7');
                 }
 
                 if (activeAnim.clashProgress >= 0.5) {
@@ -583,25 +562,25 @@
                 promotion: moveObj.promotion || 'q'
             });
 
-            // Reacción viva al jaque: el rey amenazado queda marcado y la narración cambia.
             if (chess.in_check()) {
                 const kingSq = findKingSquare(chess.turn());
                 if (kingSq) {
                     const king = squareToCoords(kingSq);
+                    const sqSize = container.getBoundingClientRect().width / 8;
                     addImpactRing(king.col, king.row, '#F05D5E');
                     addImpactRing(king.col, king.row, '#F8B4B4');
-                    spawnFloatingText((king.col + 0.5) * (container.getBoundingClientRect().width / 8),
-                        (king.row + 0.25) * (container.getBoundingClientRect().width / 8),
+                    spawnFloatingText((king.col + 0.5) * sqSize,
+                        (king.row + 0.25) * sqSize,
                         chess.in_checkmate() ? '¡JAQUE MATE!' : '¡JAQUE!', '#F8B4B4');
                     triggerShake(chess.in_checkmate() ? 12 : 6);
                     showCombatBanner(chess.in_checkmate() ? '¡El rey ha sido acorralado!' : '¡JAQUE! El rey está bajo ataque');
                 }
             } else if (!moveObj.captured) {
-                // Un movimiento normal deja una pequeña firma de polvo y energía.
                 const target = squareToCoords(moveObj.to);
-                spawnParticles((target.col + 0.5) * (container.getBoundingClientRect().width / 8),
-                    (target.row + 0.72) * (container.getBoundingClientRect().width / 8),
-                    'rgba(245, 245, 238, 0.5)', 8, 0.55, 'dust');
+                const sqSize = container.getBoundingClientRect().width / 8;
+                spawnParticles((target.col + 0.5) * sqSize,
+                    (target.row + 0.72) * sqSize,
+                    'rgba(253, 243, 231, 0.5)', 8, 0.55, 'dust');
             }
 
             lastMove = { from: moveObj.from, to: moveObj.to };
@@ -697,7 +676,27 @@
                 }
             }
 
-            // Bruma de brasas y energía que mantiene vivo el campo de batalla.
+            // Halo persistente: mientras haya jaque, el rey respira dentro de una zona de peligro
+            if (!activeAnim && chess.in_check()) {
+                const checkedKing = findKingSquare(chess.turn());
+                if (checkedKing) {
+                    const danger = squareToCoords(checkedKing);
+                    const dx = (danger.col + 0.5) * sqSize;
+                    const dy = (danger.row + 0.5) * sqSize;
+                    ctx.save();
+                    ctx.globalAlpha = 0.28 + (Math.sin(globalTime * 8) + 1) * 0.14;
+                    ctx.strokeStyle = '#F05D5E';
+                    ctx.lineWidth = Math.max(2, sqSize * 0.035);
+                    ctx.shadowColor = '#F05D5E';
+                    ctx.shadowBlur = sqSize * 0.22;
+                    ctx.beginPath();
+                    ctx.arc(dx, dy, sqSize * (0.38 + Math.sin(globalTime * 5) * 0.035), 0, Math.PI * 2);
+                    ctx.stroke();
+                    ctx.restore();
+                }
+            }
+
+            // Bruma de brasas y energía que mantiene vivo el campo de batalla
             ctx.save();
             ctx.globalCompositeOperation = 'screen';
             for (const ember of ambientEmbers) {
@@ -712,7 +711,7 @@
             }
             ctx.restore();
 
-            // Rastro luminoso de cada desplazamiento reciente.
+            // Rastro luminoso de cada desplazamiento reciente
             for (const trail of moveTrails) {
                 const fade = Math.max(0, trail.life / trail.maxLife);
                 const x1 = (trail.fromCol + 0.5) * sqSize;
@@ -869,7 +868,7 @@
         }
 
         // ============================================================================
-        // DIBUJO DE PERSONAJES VIVOS (ESTILO ILUSTRADO CARTOON SEGÚN DISEÑO)
+        // DIBUJO DE PERSONAJES VIVOS (ESTILO ILUSTRADO SEGÚN IMAGEN DE REFERENCIA)
         // ============================================================================
         function drawCharacter(ctx, piece, cx, cy, size, state = {}) {
             const {
@@ -880,8 +879,7 @@
                 facing = 1,
                 isSelected = false,
                 alpha = 1,
-                idleSeed = 0,
-                square = ''
+                idleSeed = 0
             } = state;
 
             ctx.save();
@@ -909,8 +907,8 @@
             if (isSelected) {
                 ctx.save();
                 ctx.translate(0, size * 0.34);
-                ctx.strokeStyle = '#111111';
-                ctx.lineWidth = 2.4;
+                ctx.strokeStyle = '#E5A853';
+                ctx.lineWidth = 2.6;
                 ctx.setLineDash([size * 0.08, size * 0.05]);
                 ctx.beginPath();
                 ctx.ellipse(0, 0, size * 0.38 + Math.sin(globalTime * 8) * 3, size * 0.14, 0, 0, Math.PI * 2);
@@ -918,13 +916,13 @@
                 ctx.restore();
             }
 
-            // Las piezas de mando emiten una corona de energía muy sutil.
+            // Resplandor sutil para piezas reales
             if ((piece.type === 'k' || piece.type === 'q') && !hitFlash) {
                 ctx.save();
-                ctx.globalAlpha = 0.12 + (Math.sin(globalTime * 2.2 + idleSeed) + 1) * 0.05;
-                ctx.strokeStyle = piece.type === 'k' ? '#111111' : '#777777';
+                ctx.globalAlpha = 0.16 + (Math.sin(globalTime * 2.2 + idleSeed) + 1) * 0.06;
+                ctx.strokeStyle = '#E5A853';
                 ctx.lineWidth = Math.max(1.5, size * 0.018);
-                ctx.shadowColor = ctx.strokeStyle;
+                ctx.shadowColor = '#E5A853';
                 ctx.shadowBlur = size * 0.14;
                 ctx.beginPath();
                 ctx.arc(0, size * 0.12, size * (0.32 + Math.sin(globalTime * 2 + idleSeed) * 0.018), 0, Math.PI * 2);
@@ -937,13 +935,13 @@
             const isWhite = piece.color === 'w';
             const r = size * 0.38;
 
-            // Paleta de tinta: marfil de papel, carbón y grises de sombreado.
-            // La silueta sigue diferenciando ambos bandos, pero ahora parece dibujada a mano.
-            const bodyMain = hitFlash > 0 ? '#FFFFFF' : (isWhite ? '#FBFBF7' : '#2A2A2A');
-            const bodyShade = hitFlash > 0 ? '#FFFFFF' : (isWhite ? '#C9C9C4' : '#0B0B0B');
-            const outline = '#090909';
-            const goldTrim = isWhite ? '#777777' : '#A9A9A3';
-            const skinTone = hitFlash > 0 ? '#FFFFFF' : (isWhite ? '#F0F0EA' : '#D8D8D2');
+            // Paleta inspirada en la imagen de referencia, diferenciando Reino Marfil (w) y Orden Granate (b)
+            const bodyMain = hitFlash > 0 ? '#FFFFFF' : (isWhite ? '#F7EFE2' : '#4A4E5A');
+            const bodyShade = hitFlash > 0 ? '#FFFFFF' : (isWhite ? '#D6C4A8' : '#2C2F38');
+            const outline = '#121318';
+            const goldTrim = hitFlash > 0 ? '#FFFFFF' : (isWhite ? '#E5A853' : '#C9863B');
+            const accentCloth = hitFlash > 0 ? '#FFFFFF' : (isWhite ? '#9E2A2B' : '#6D28D9');
+            const skinTone = hitFlash > 0 ? '#FFFFFF' : (isWhite ? '#F2C6A0' : '#D9A782');
 
             ctx.lineCap = 'round';
             ctx.lineJoin = 'round';
@@ -951,127 +949,107 @@
             ctx.strokeStyle = outline;
 
             // ========================================================================
-            // 1. TORRE (ROOK): Torre con almenas, bigote poblado y maza de púas
+            // 1. TORRE (ROOK): Torre de piedra con ceño fruncido, bloques y banderín
             // ========================================================================
             if (piece.type === 'r') {
                 const lunge = attackProgress * facing * r * 0.25;
                 ctx.translate(lunge, 0);
 
-                // Base acampanada con sombreado de líneas
-                ctx.fillStyle = bodyShade;
+                // Asta y banderín superior
                 ctx.beginPath();
-                ctx.ellipse(0, r * 0.72, r * 0.62, r * 0.16, 0, 0, Math.PI * 2);
-                ctx.fill();
+                ctx.moveTo(r * 0.08, -r * 0.56);
+                ctx.lineTo(r * 0.08, -r * 0.88);
                 ctx.stroke();
 
-                ctx.fillStyle = bodyMain;
+                ctx.fillStyle = isWhite ? '#3B82F6' : '#E5A853';
                 ctx.beginPath();
-                ctx.moveTo(-r * 0.56, r * 0.72);
-                ctx.quadraticCurveTo(-r * 0.42, r * 0.35, -r * 0.38, -r * 0.36);
-                ctx.lineTo(r * 0.38, -r * 0.36);
-                ctx.quadraticCurveTo(r * 0.42, r * 0.35, r * 0.56, r * 0.72);
+                ctx.moveTo(r * 0.08, -r * 0.88);
+                ctx.lineTo(r * 0.36, -r * 0.8);
+                ctx.lineTo(r * 0.08, -r * 0.71);
                 ctx.closePath();
                 ctx.fill();
                 ctx.stroke();
 
-                // Sombreado lateral de grabado
+                // Base acampanada
+                ctx.fillStyle = bodyShade;
+                ctx.beginPath();
+                ctx.ellipse(0, r * 0.72, r * 0.62, r * 0.15, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+
+                // Cuerpo de torre
+                ctx.fillStyle = bodyMain;
+                ctx.beginPath();
+                ctx.moveTo(-r * 0.54, r * 0.7);
+                ctx.quadraticCurveTo(-r * 0.4, r * 0.32, -r * 0.36, -r * 0.36);
+                ctx.lineTo(r * 0.36, -r * 0.36);
+                ctx.quadraticCurveTo(r * 0.4, r * 0.32, r * 0.54, r * 0.7);
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+
+                // Líneas de mampostería / bloques de piedra
                 ctx.save();
                 ctx.strokeStyle = outline;
                 ctx.lineWidth = Math.max(1.1, size * 0.018);
-                for (let i = 0; i < 6; i++) {
-                    const yLine = -r * 0.15 + i * r * 0.13;
-                    ctx.beginPath();
-                    ctx.moveTo(r * 0.16, yLine);
-                    ctx.lineTo(r * 0.38, yLine - r * 0.03);
-                    ctx.stroke();
-                }
+                ctx.beginPath();
+                ctx.moveTo(-r * 0.42, r * 0.38); ctx.lineTo(r * 0.42, r * 0.38);
+                ctx.moveTo(-r * 0.48, r * 0.56); ctx.lineTo(r * 0.48, r * 0.56);
+                ctx.moveTo(-r * 0.14, r * 0.38); ctx.lineTo(-r * 0.14, r * 0.56);
+                ctx.moveTo(r * 0.18, r * 0.38); ctx.lineTo(r * 0.18, r * 0.56);
+                ctx.moveTo(-r * 0.02, r * 0.56); ctx.lineTo(-r * 0.02, r * 0.72);
+                ctx.stroke();
                 ctx.restore();
 
                 // Almenas superiores
                 ctx.fillStyle = bodyMain;
                 ctx.beginPath();
-                ctx.moveTo(-r * 0.46, -r * 0.36);
-                ctx.lineTo(-r * 0.48, -r * 0.72);
-                ctx.lineTo(-r * 0.24, -r * 0.72);
-                ctx.lineTo(-r * 0.24, -r * 0.54);
-                ctx.lineTo(-r * 0.12, -r * 0.54);
-                ctx.lineTo(-r * 0.12, -r * 0.72);
-                ctx.lineTo(r * 0.12, -r * 0.72);
-                ctx.lineTo(r * 0.12, -r * 0.54);
-                ctx.lineTo(r * 0.24, -r * 0.54);
-                ctx.lineTo(r * 0.24, -r * 0.72);
-                ctx.lineTo(r * 0.48, -r * 0.72);
-                ctx.lineTo(r * 0.46, -r * 0.36);
+                ctx.moveTo(-r * 0.44, -r * 0.36);
+                ctx.lineTo(-r * 0.46, -r * 0.62);
+                ctx.lineTo(-r * 0.24, -r * 0.62);
+                ctx.lineTo(-r * 0.24, -r * 0.48);
+                ctx.lineTo(-r * 0.11, -r * 0.48);
+                ctx.lineTo(-r * 0.11, -r * 0.62);
+                ctx.lineTo(r * 0.11, -r * 0.62);
+                ctx.lineTo(r * 0.11, -r * 0.48);
+                ctx.lineTo(r * 0.24, -r * 0.48);
+                ctx.lineTo(r * 0.24, -r * 0.62);
+                ctx.lineTo(r * 0.46, -r * 0.62);
+                ctx.lineTo(r * 0.44, -r * 0.36);
                 ctx.closePath();
                 ctx.fill();
                 ctx.stroke();
 
-                // Cejas fruncidas y ojos
+                // Rostro / ceño fruncido de la torre
                 ctx.fillStyle = outline;
                 ctx.beginPath();
-                ctx.arc(-r * 0.14, -r * 0.1, r * 0.045, 0, Math.PI * 2);
-                ctx.arc(r * 0.14, -r * 0.1, r * 0.045, 0, Math.PI * 2);
+                ctx.arc(-r * 0.14, -r * 0.06, r * 0.055, 0, Math.PI * 2);
+                ctx.arc(r * 0.14, -r * 0.06, r * 0.055, 0, Math.PI * 2);
                 ctx.fill();
 
+                ctx.fillStyle = '#FFFFFF';
                 ctx.beginPath();
-                ctx.moveTo(-r * 0.24, -r * 0.2);
-                ctx.lineTo(-r * 0.06, -r * 0.15);
-                ctx.moveTo(r * 0.24, -r * 0.2);
-                ctx.lineTo(r * 0.06, -r * 0.15);
-                ctx.stroke();
-
-                // Bigote poblado
-                ctx.fillStyle = isWhite ? '#FFFFFF' : '#222429';
-                ctx.beginPath();
-                ctx.moveTo(0, r * 0.03);
-                ctx.quadraticCurveTo(-r * 0.18, -r * 0.02, -r * 0.3, r * 0.14);
-                ctx.quadraticCurveTo(-r * 0.12, r * 0.16, 0, r * 0.09);
-                ctx.quadraticCurveTo(r * 0.12, r * 0.16, r * 0.3, r * 0.14);
-                ctx.quadraticCurveTo(r * 0.18, -r * 0.02, 0, r * 0.03);
-                ctx.closePath();
+                ctx.arc(-r * 0.15, -r * 0.08, r * 0.018, 0, Math.PI * 2);
+                ctx.arc(r * 0.13, -r * 0.08, r * 0.018, 0, Math.PI * 2);
                 ctx.fill();
+
+                // Cejas gruesas fruncidas
+                ctx.beginPath();
+                ctx.moveTo(-r * 0.25, -r * 0.18);
+                ctx.lineTo(-r * 0.04, -r * 0.11);
+                ctx.moveTo(r * 0.25, -r * 0.18);
+                ctx.lineTo(r * 0.04, -r * 0.11);
                 ctx.stroke();
 
-                // Brazos apoyados y maza con cadena y bola de púas
-                ctx.fillStyle = bodyMain;
+                // Boca seria de piedra
                 ctx.beginPath();
-                ctx.moveTo(-r * 0.38, r * 0.16);
-                ctx.quadraticCurveTo(-r * 0.56, r * 0.3, -r * 0.36, r * 0.38);
-                ctx.moveTo(r * 0.38, r * 0.16);
-                ctx.quadraticCurveTo(r * 0.56, r * 0.3, r * 0.36, r * 0.38);
+                ctx.moveTo(-r * 0.14, r * 0.16);
+                ctx.quadraticCurveTo(0, r * 0.12, r * 0.14, r * 0.16);
                 ctx.stroke();
-
-                ctx.save();
-                ctx.translate(-r * 0.44, r * 0.32);
-                ctx.rotate(-0.65 - attackProgress * 1.1);
-                // Mango
-                ctx.beginPath();
-                ctx.moveTo(0, r * 0.2);
-                ctx.lineTo(0, -r * 0.42);
-                ctx.stroke();
-                // Cadena
-                ctx.beginPath();
-                ctx.moveTo(0, -r * 0.42);
-                ctx.quadraticCurveTo(-r * 0.25, -r * 0.52, -r * 0.26, -r * 0.22);
-                ctx.stroke();
-                // Bola con púas
-                ctx.fillStyle = bodyShade;
-                ctx.beginPath();
-                ctx.arc(-r * 0.28, -r * 0.12, r * 0.14, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.stroke();
-                for (let s = 0; s < 6; s++) {
-                    const ang = (s / 6) * Math.PI * 2;
-                    ctx.beginPath();
-                    ctx.moveTo(-r * 0.28 + Math.cos(ang) * r * 0.13, -r * 0.12 + Math.sin(ang) * r * 0.13);
-                    ctx.lineTo(-r * 0.28 + Math.cos(ang) * r * 0.22, -r * 0.12 + Math.sin(ang) * r * 0.22);
-                    ctx.stroke();
-                }
-                ctx.restore();
             }
 
             // ========================================================================
-            // 2. CABALLO (KNIGHT): Caballo de perfil con crin rizada, bridas y peana
+            // 2. CABALLO (KNIGHT): Caballo con armadura, bridas y escudo lateral
             // ========================================================================
             else if (piece.type === 'n') {
                 ctx.scale(facing, 1);
@@ -1079,35 +1057,35 @@
                     ctx.rotate(-attackProgress * 0.25);
                 }
 
-                // Peana inferior del caballo de ajedrez
+                // Peana inferior
                 ctx.fillStyle = bodyShade;
                 ctx.beginPath();
                 ctx.ellipse(0, r * 0.74, r * 0.54, r * 0.14, 0, 0, Math.PI * 2);
                 ctx.fill();
                 ctx.stroke();
 
-                // Cuerpo y cuello esculpido
+                // Cuerpo y cuello del caballo
                 ctx.fillStyle = bodyMain;
                 ctx.beginPath();
-                ctx.moveTo(-r * 0.44, r * 0.74);
-                ctx.quadraticCurveTo(-r * 0.48, r * 0.1, -r * 0.22, -r * 0.46);
+                ctx.moveTo(-r * 0.42, r * 0.74);
+                ctx.quadraticCurveTo(-r * 0.46, r * 0.12, -r * 0.22, -r * 0.46);
                 ctx.quadraticCurveTo(r * 0.04, -r * 0.72, r * 0.36, -r * 0.52);
-                ctx.lineTo(r * 0.56, -r * 0.22);
-                ctx.quadraticCurveTo(r * 0.58, -r * 0.04, r * 0.34, -r * 0.06);
+                ctx.lineTo(r * 0.58, -r * 0.22);
+                ctx.quadraticCurveTo(r * 0.6, -r * 0.04, r * 0.34, -r * 0.06);
                 ctx.quadraticCurveTo(r * 0.26, r * 0.28, r * 0.42, r * 0.74);
                 ctx.closePath();
                 ctx.fill();
                 ctx.stroke();
 
-                // Detalle de escudo/pliegue en el pecho
-                ctx.fillStyle = bodyShade;
+                // Placa de armadura en el cuello
+                ctx.fillStyle = goldTrim;
                 ctx.beginPath();
-                ctx.roundRect(r * 0.06, r * 0.05, r * 0.24, r * 0.36, r * 0.1);
+                ctx.roundRect(-r * 0.04, -r * 0.28, r * 0.24, r * 0.22, r * 0.06);
                 ctx.fill();
                 ctx.stroke();
 
-                // Crin rizada superior y trasera
-                ctx.fillStyle = isWhite ? '#EFE6D5' : '#202227';
+                // Crin rizada
+                ctx.fillStyle = bodyShade;
                 const curls = [
                     [-r * 0.02, -r * 0.62],
                     [-r * 0.16, -r * 0.56],
@@ -1139,7 +1117,7 @@
                 ctx.lineTo(r * 0.54, -r * 0.28);
                 ctx.stroke();
 
-                // Ojo expresivo con pestaña/ceja
+                // Ojo expresivo
                 ctx.fillStyle = '#FFFFFF';
                 ctx.beginPath();
                 ctx.ellipse(r * 0.32, -r * 0.38, r * 0.08, r * 0.1, -0.2, 0, Math.PI * 2);
@@ -1149,239 +1127,266 @@
                 ctx.beginPath();
                 ctx.arc(r * 0.34, -r * 0.38, r * 0.04, 0, Math.PI * 2);
                 ctx.fill();
+
+                // Escudo heráldico en el pecho/costado
+                ctx.fillStyle = accentCloth;
+                ctx.beginPath();
+                ctx.moveTo(r * 0.08, r * 0.06);
+                ctx.lineTo(r * 0.44, r * 0.06);
+                ctx.lineTo(r * 0.41, r * 0.42);
+                ctx.lineTo(r * 0.26, r * 0.54);
+                ctx.lineTo(r * 0.11, r * 0.42);
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
             }
 
             // ========================================================================
-            // 3. ALFIL (BISHOP): Guardia con yelmo puntiagudo, bigote, espada y escudo
+            // 3. ALFIL (BISHOP): Obispo con mitra, túnica ceremonial y báculo curvo
             // ========================================================================
             else if (piece.type === 'b') {
-                // Base y cuerpo cónico
-                ctx.fillStyle = bodyMain;
+                // Base
+                ctx.fillStyle = bodyShade;
                 ctx.beginPath();
                 ctx.ellipse(0, r * 0.74, r * 0.48, r * 0.12, 0, 0, Math.PI * 2);
                 ctx.fill();
                 ctx.stroke();
 
+                // Túnica
+                ctx.fillStyle = bodyMain;
                 ctx.beginPath();
                 ctx.moveTo(-r * 0.38, r * 0.74);
-                ctx.lineTo(-r * 0.24, -r * 0.08);
-                ctx.lineTo(r * 0.24, -r * 0.08);
+                ctx.lineTo(-r * 0.24, -r * 0.06);
+                ctx.lineTo(r * 0.24, -r * 0.06);
                 ctx.lineTo(r * 0.38, r * 0.74);
                 ctx.closePath();
                 ctx.fill();
                 ctx.stroke();
 
-                // Hombrera / Cuello
-                ctx.fillStyle = bodyShade;
+                // Estola central con borde dorado
+                ctx.fillStyle = accentCloth;
                 ctx.beginPath();
-                ctx.roundRect(-r * 0.34, -r * 0.16, r * 0.68, r * 0.14, r * 0.06);
+                ctx.moveTo(-r * 0.12, -r * 0.06);
+                ctx.lineTo(r * 0.12, -r * 0.06);
+                ctx.lineTo(r * 0.16, r * 0.74);
+                ctx.lineTo(-r * 0.16, r * 0.74);
+                ctx.closePath();
                 ctx.fill();
                 ctx.stroke();
 
-                // Cabeza y yelmo con punta
+                // Cabeza y mitra
                 ctx.save();
                 ctx.translate(0, -r * 0.34 + breath);
                 ctx.fillStyle = skinTone;
                 ctx.beginPath();
-                ctx.arc(0, 0, r * 0.23, 0, Math.PI * 2);
+                ctx.arc(0, r * 0.02, r * 0.21, 0, Math.PI * 2);
                 ctx.fill();
                 ctx.stroke();
 
-                // Yelmo
-                ctx.fillStyle = bodyMain;
+                // Mitra puntiaguda
+                ctx.fillStyle = accentCloth;
                 ctx.beginPath();
-                ctx.arc(0, -r * 0.04, r * 0.24, Math.PI, 0);
-                ctx.lineTo(0, -r * 0.52);
+                ctx.moveTo(-r * 0.24, -r * 0.08);
+                ctx.quadraticCurveTo(-r * 0.18, -r * 0.42, 0, -r * 0.58);
+                ctx.quadraticCurveTo(r * 0.18, -r * 0.42, r * 0.24, -r * 0.08);
                 ctx.closePath();
                 ctx.fill();
                 ctx.stroke();
 
-                // Ojos y bigote
+                // Cruz dorada en la mitra
+                ctx.strokeStyle = goldTrim;
+                ctx.lineWidth = Math.max(1.5, size * 0.024);
+                ctx.beginPath();
+                ctx.moveTo(0, -r * 0.44); ctx.lineTo(0, -r * 0.2);
+                ctx.moveTo(-r * 0.09, -r * 0.32); ctx.lineTo(r * 0.09, -r * 0.32);
+                ctx.stroke();
+
+                ctx.strokeStyle = outline;
+                ctx.lineWidth = Math.max(1.8, size * 0.032);
+
+                // Ojos y sonrisa serena
                 ctx.fillStyle = outline;
                 ctx.beginPath();
-                ctx.arc(-r * 0.08, -r * 0.02, r * 0.035, 0, Math.PI * 2);
-                ctx.arc(r * 0.08, -r * 0.02, r * 0.035, 0, Math.PI * 2);
+                ctx.arc(-r * 0.08, r * 0.01, r * 0.032, 0, Math.PI * 2);
+                ctx.arc(r * 0.08, r * 0.01, r * 0.032, 0, Math.PI * 2);
                 ctx.fill();
 
-                ctx.fillStyle = isWhite ? '#FFFFFF' : '#222429';
                 ctx.beginPath();
-                ctx.ellipse(-r * 0.1, r * 0.08, r * 0.12, r * 0.05, -0.15, 0, Math.PI * 2);
-                ctx.ellipse(r * 0.1, r * 0.08, r * 0.12, r * 0.05, 0.15, 0, Math.PI * 2);
-                ctx.fill();
+                ctx.arc(0, r * 0.08, r * 0.07, 0.15 * Math.PI, 0.85 * Math.PI);
                 ctx.stroke();
                 ctx.restore();
 
-                // Espada a la izquierda
+                // Báculo pastoral a la derecha
                 ctx.save();
-                ctx.translate(-r * 0.22, r * 0.15);
-                ctx.rotate(-attackProgress * 0.7);
-                ctx.fillStyle = bodyShade;
+                ctx.translate(r * 0.36, r * 0.12);
+                ctx.rotate(attackProgress * 0.45);
+                ctx.strokeStyle = goldTrim;
+                ctx.lineWidth = Math.max(2, size * 0.032);
                 ctx.beginPath();
-                ctx.moveTo(-r * 0.06, -r * 0.15);
-                ctx.lineTo(r * 0.06, -r * 0.15);
-                ctx.lineTo(r * 0.04, r * 0.56);
-                ctx.lineTo(0, r * 0.68);
-                ctx.lineTo(-r * 0.04, r * 0.56);
-                ctx.closePath();
-                ctx.fill();
-                ctx.stroke();
-                // Guarda de espada
-                ctx.fillRect(-r * 0.14, -r * 0.16, r * 0.28, r * 0.06);
-                ctx.strokeRect(-r * 0.14, -r * 0.16, r * 0.28, r * 0.06);
-                ctx.restore();
-
-                // Escudo grande a la derecha
-                ctx.fillStyle = bodyMain;
-                ctx.beginPath();
-                ctx.moveTo(r * 0.04, r * 0.12);
-                ctx.lineTo(r * 0.52, r * 0.12);
-                ctx.lineTo(r * 0.48, r * 0.66);
-                ctx.lineTo(r * 0.28, r * 0.78);
-                ctx.lineTo(r * 0.08, r * 0.66);
-                ctx.closePath();
-                ctx.fill();
-                ctx.stroke();
-            }
-
-            // ========================================================================
-            // 4. REINA (QUEEN): Soberana con cuello alto, rizos laterales y brazo señalador
-            // ========================================================================
-            else if (piece.type === 'q') {
-                // Vestido largo y elegante
-                ctx.fillStyle = bodyMain;
-                ctx.beginPath();
-                ctx.moveTo(-r * 0.42, r * 0.76);
-                ctx.quadraticCurveTo(-r * 0.22, r * 0.15, -r * 0.14, -r * 0.08);
-                ctx.lineTo(r * 0.14, -r * 0.08);
-                ctx.quadraticCurveTo(r * 0.22, r * 0.15, r * 0.42, r * 0.76);
-                ctx.closePath();
-                ctx.fill();
-                ctx.stroke();
-
-                // Cuello alto abierto tipo capa real
-                ctx.fillStyle = bodyShade;
-                ctx.beginPath();
-                ctx.moveTo(-r * 0.12, -r * 0.05);
-                ctx.quadraticCurveTo(-r * 0.48, -r * 0.14, -r * 0.26, -r * 0.34);
-                ctx.lineTo(r * 0.26, -r * 0.34);
-                ctx.quadraticCurveTo(r * 0.48, -r * 0.14, r * 0.12, -r * 0.05);
-                ctx.closePath();
-                ctx.fill();
-                ctx.stroke();
-
-                // Cabeza, rizos y corona
-                ctx.save();
-                ctx.translate(0, -r * 0.44 + breath);
-
-                // Rizos laterales
-                ctx.fillStyle = isWhite ? '#D8C9B4' : '#1E2025';
-                for (let row = 0; row < 3; row++) {
-                    ctx.beginPath();
-                    ctx.arc(-r * 0.24, -r * 0.04 + row * r * 0.1, r * 0.08, 0, Math.PI * 2);
-                    ctx.fill();
-                    ctx.stroke();
-                }
-
-                ctx.fillStyle = skinTone;
-                ctx.beginPath();
-                ctx.ellipse(0, 0, r * 0.21, r * 0.24, 0, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.stroke();
-
-                // Ojos y expresión firme
-                ctx.fillStyle = outline;
-                ctx.beginPath();
-                ctx.arc(-r * 0.06, -r * 0.03, r * 0.035, 0, Math.PI * 2);
-                ctx.arc(r * 0.08, -r * 0.03, r * 0.035, 0, Math.PI * 2);
-                ctx.fill();
-
-                ctx.beginPath();
-                ctx.moveTo(-r * 0.02, r * 0.1);
-                ctx.lineTo(r * 0.14, r * 0.08);
-                ctx.stroke();
-
-                // Corona
-                ctx.fillStyle = bodyMain;
-                ctx.beginPath();
-                ctx.moveTo(-r * 0.18, -r * 0.2);
-                ctx.lineTo(-r * 0.26, -r * 0.46);
-                ctx.lineTo(-r * 0.08, -r * 0.34);
-                ctx.lineTo(0, -r * 0.5);
-                ctx.lineTo(r * 0.08, -r * 0.34);
-                ctx.lineTo(r * 0.26, -r * 0.46);
-                ctx.lineTo(r * 0.18, -r * 0.2);
-                ctx.closePath();
-                ctx.fill();
-                ctx.stroke();
-                ctx.restore();
-
-                // Brazo extendido señalando
-                ctx.strokeStyle = skinTone;
-                ctx.lineWidth = Math.max(2, size * 0.034);
-                ctx.beginPath();
-                ctx.moveTo(r * 0.12, -r * 0.05);
-                ctx.lineTo(r * 0.46, -r * 0.16 - attackProgress * r * 0.2);
-                ctx.lineTo(r * 0.68, -r * 0.12 - attackProgress * r * 0.2);
+                ctx.moveTo(0, r * 0.6);
+                ctx.lineTo(0, -r * 0.48);
+                ctx.arc(r * 0.09, -r * 0.48, r * 0.09, Math.PI, 0.35 * Math.PI, false);
                 ctx.stroke();
                 ctx.strokeStyle = outline;
-                ctx.lineWidth = Math.max(1.2, size * 0.02);
+                ctx.lineWidth = Math.max(1.1, size * 0.016);
                 ctx.stroke();
+                ctx.restore();
             }
 
             // ========================================================================
-            // 5. REY (KING): Monarca con gorguera/cuello rizado, bigote y cetro
+            // 4. REINA (QUEEN): Soberana con corona, capa con armiño y cetro
+            // ========================================================================
+            else if (piece.type === 'q') {
+                // Vestido largo
+                ctx.fillStyle = accentCloth;
+                ctx.beginPath();
+                ctx.moveTo(-r * 0.44, r * 0.76);
+                ctx.quadraticCurveTo(-r * 0.22, r * 0.15, -r * 0.16, -r * 0.08);
+                ctx.lineTo(r * 0.16, -r * 0.08);
+                ctx.quadraticCurveTo(r * 0.22, r * 0.15, r * 0.44, r * 0.76);
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+
+                // Capa lateral con ribete claro tipo armiño
+                ctx.fillStyle = bodyMain;
+                ctx.beginPath();
+                ctx.moveTo(-r * 0.16, -r * 0.08);
+                ctx.quadraticCurveTo(-r * 0.44, r * 0.25, -r * 0.48, r * 0.74);
+                ctx.lineTo(-r * 0.28, r * 0.74);
+                ctx.quadraticCurveTo(-r * 0.2, r * 0.32, -r * 0.12, r * 0.1);
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+
+                ctx.beginPath();
+                ctx.moveTo(r * 0.16, -r * 0.08);
+                ctx.quadraticCurveTo(r * 0.44, r * 0.25, r * 0.48, r * 0.74);
+                ctx.lineTo(r * 0.28, r * 0.74);
+                ctx.quadraticCurveTo(r * 0.2, r * 0.32, r * 0.12, r * 0.1);
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+
+                // Cabeza, cabello y corona real
+                ctx.save();
+                ctx.translate(0, -r * 0.42 + breath);
+
+                // Cabello ondulado
+                ctx.fillStyle = isWhite ? '#78350F' : '#1E1B4B';
+                ctx.beginPath();
+                ctx.ellipse(0, r * 0.04, r * 0.26, r * 0.28, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+
+                // Rostro
+                ctx.fillStyle = skinTone;
+                ctx.beginPath();
+                ctx.ellipse(0, r * 0.02, r * 0.19, r * 0.22, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+
+                // Ojos y sonrisa
+                ctx.fillStyle = outline;
+                ctx.beginPath();
+                ctx.arc(-r * 0.07, -r * 0.01, r * 0.032, 0, Math.PI * 2);
+                ctx.arc(r * 0.07, -r * 0.01, r * 0.032, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.beginPath();
+                ctx.arc(0, r * 0.09, r * 0.07, 0.15 * Math.PI, 0.85 * Math.PI);
+                ctx.stroke();
+
+                // Corona dorada
+                ctx.fillStyle = goldTrim;
+                ctx.beginPath();
+                ctx.moveTo(-r * 0.18, -r * 0.18);
+                ctx.lineTo(-r * 0.24, -r * 0.42);
+                ctx.lineTo(-r * 0.08, -r * 0.3);
+                ctx.lineTo(0, -r * 0.46);
+                ctx.lineTo(r * 0.08, -r * 0.3);
+                ctx.lineTo(r * 0.24, -r * 0.42);
+                ctx.lineTo(r * 0.18, -r * 0.18);
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+                ctx.restore();
+
+                // Cetro real a la izquierda
+                ctx.save();
+                ctx.translate(-r * 0.34, r * 0.16);
+                ctx.rotate(-0.15 - attackProgress * 0.65);
+                ctx.strokeStyle = goldTrim;
+                ctx.beginPath();
+                ctx.moveTo(0, r * 0.52);
+                ctx.lineTo(0, -r * 0.48);
+                ctx.stroke();
+                ctx.strokeStyle = outline;
+                ctx.fillStyle = isWhite ? '#2DD4BF' : '#F59E0B';
+                ctx.beginPath();
+                ctx.arc(0, -r * 0.54, r * 0.1, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+                ctx.restore();
+            }
+
+            // ========================================================================
+            // 5. REY (KING): Monarca barbado con corona, manto y cetro
             // ========================================================================
             else if (piece.type === 'k') {
-                // Túnica de ajedrez
-                ctx.fillStyle = bodyMain;
+                // Base y túnica
+                ctx.fillStyle = bodyShade;
                 ctx.beginPath();
                 ctx.ellipse(0, r * 0.74, r * 0.52, r * 0.14, 0, 0, Math.PI * 2);
                 ctx.fill();
                 ctx.stroke();
 
+                ctx.fillStyle = accentCloth;
                 ctx.beginPath();
-                ctx.moveTo(-r * 0.44, r * 0.74);
-                ctx.quadraticCurveTo(-r * 0.26, r * 0.15, -r * 0.2, -r * 0.14);
-                ctx.lineTo(r * 0.2, -r * 0.14);
-                ctx.quadraticCurveTo(r * 0.26, r * 0.15, r * 0.44, r * 0.74);
+                ctx.moveTo(-r * 0.46, r * 0.74);
+                ctx.quadraticCurveTo(-r * 0.28, r * 0.15, -r * 0.22, -r * 0.14);
+                ctx.lineTo(r * 0.22, -r * 0.14);
+                ctx.quadraticCurveTo(r * 0.28, r * 0.15, r * 0.46, r * 0.74);
                 ctx.closePath();
                 ctx.fill();
                 ctx.stroke();
 
-                // Gorguera / Cuello rizado
-                ctx.fillStyle = bodyShade;
-                for (let g = -3; g <= 3; g++) {
-                    ctx.beginPath();
-                    ctx.arc(g * r * 0.08, -r * 0.14, r * 0.08, 0, Math.PI * 2);
-                    ctx.fill();
-                    ctx.stroke();
-                }
+                // Ribete de armiño en el cuello
+                ctx.fillStyle = bodyMain;
+                ctx.beginPath();
+                ctx.roundRect(-r * 0.28, -r * 0.2, r * 0.56, r * 0.12, r * 0.05);
+                ctx.fill();
+                ctx.stroke();
 
-                // Cabeza, bigote y corona con picos
+                // Cabeza, barba y corona
                 ctx.save();
-                ctx.translate(0, -r * 0.38 + breath);
+                ctx.translate(0, -r * 0.42 + breath);
                 ctx.fillStyle = skinTone;
                 ctx.beginPath();
-                ctx.arc(0, 0, r * 0.23, 0, Math.PI * 2);
+                ctx.arc(0, 0, r * 0.22, 0, Math.PI * 2);
                 ctx.fill();
                 ctx.stroke();
 
-                // Ojos y bigote real
+                // Barba y bigote poblados
+                ctx.fillStyle = isWhite ? '#78350F' : '#1F2937';
+                ctx.beginPath();
+                ctx.moveTo(-r * 0.22, r * 0.02);
+                ctx.quadraticCurveTo(-r * 0.24, r * 0.34, 0, r * 0.38);
+                ctx.quadraticCurveTo(r * 0.24, r * 0.34, r * 0.22, r * 0.02);
+                ctx.quadraticCurveTo(0, r * 0.12, -r * 0.22, r * 0.02);
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+
+                // Ojos
                 ctx.fillStyle = outline;
                 ctx.beginPath();
-                ctx.arc(-r * 0.08, -r * 0.04, r * 0.035, 0, Math.PI * 2);
-                ctx.arc(r * 0.08, -r * 0.04, r * 0.035, 0, Math.PI * 2);
+                ctx.arc(-r * 0.08, -r * 0.04, r * 0.034, 0, Math.PI * 2);
+                ctx.arc(r * 0.08, -r * 0.04, r * 0.034, 0, Math.PI * 2);
                 ctx.fill();
 
-                ctx.fillStyle = isWhite ? '#FFFFFF' : '#222429';
-                ctx.beginPath();
-                ctx.ellipse(-r * 0.11, r * 0.07, r * 0.13, r * 0.055, -0.1, 0, Math.PI * 2);
-                ctx.ellipse(r * 0.11, r * 0.07, r * 0.13, r * 0.055, 0.1, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.stroke();
-
-                // Corona real
-                ctx.fillStyle = bodyMain;
+                // Corona dorada con picos
+                ctx.fillStyle = goldTrim;
                 ctx.beginPath();
                 ctx.moveTo(-r * 0.2, -r * 0.2);
                 ctx.lineTo(-r * 0.26, -r * 0.46);
@@ -1395,106 +1400,97 @@
                 ctx.stroke();
                 ctx.restore();
 
-                // Cetro largo a la izquierda
+                // Cetro a la izquierda
                 ctx.save();
-                ctx.translate(-r * 0.42, r * 0.1);
-                ctx.rotate(-0.18 - attackProgress * 0.8);
+                ctx.translate(-r * 0.38, r * 0.14);
+                ctx.rotate(-0.15 - attackProgress * 0.75);
+                ctx.strokeStyle = goldTrim;
                 ctx.beginPath();
-                ctx.moveTo(0, r * 0.55);
-                ctx.lineTo(0, -r * 0.65);
+                ctx.moveTo(0, r * 0.52);
+                ctx.lineTo(0, -r * 0.56);
                 ctx.stroke();
-                ctx.fillStyle = bodyMain;
+                ctx.strokeStyle = outline;
+                ctx.fillStyle = goldTrim;
                 ctx.beginPath();
-                ctx.arc(0, -r * 0.72, r * 0.12, 0, Math.PI * 2);
+                ctx.arc(0, -r * 0.62, r * 0.11, 0, Math.PI * 2);
                 ctx.fill();
                 ctx.stroke();
                 ctx.restore();
             }
 
             // ========================================================================
-            // 6. PEÓN (PAWN): Soldado con morrión, banda cruzada y arma al hombro
+            // 6. PEÓN (PAWN): Soldado con casco, lanza y escudo
             // ========================================================================
             else {
+                // Base
                 ctx.fillStyle = bodyShade;
                 ctx.beginPath();
                 ctx.ellipse(0, r * 0.74, r * 0.44, r * 0.12, 0, 0, Math.PI * 2);
                 ctx.fill();
                 ctx.stroke();
 
+                // Cuerpo de soldado
                 ctx.fillStyle = bodyMain;
                 ctx.beginPath();
-                ctx.moveTo(-r * 0.36, r * 0.74);
-                ctx.quadraticCurveTo(-r * 0.2, r * 0.25, -r * 0.16, r * 0.04);
-                ctx.lineTo(r * 0.16, r * 0.04);
-                ctx.quadraticCurveTo(r * 0.2, r * 0.25, r * 0.36, r * 0.74);
+                ctx.moveTo(-r * 0.34, r * 0.74);
+                ctx.quadraticCurveTo(-r * 0.2, r * 0.25, -r * 0.16, r * 0.08);
+                ctx.lineTo(r * 0.16, r * 0.08);
+                ctx.quadraticCurveTo(r * 0.2, r * 0.25, r * 0.34, r * 0.74);
                 ctx.closePath();
                 ctx.fill();
                 ctx.stroke();
 
-                // Solapa / Cuello de soldado
-                ctx.fillStyle = bodyShade;
-                ctx.beginPath();
-                ctx.ellipse(0, r * 0.06, r * 0.36, r * 0.1, 0, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.stroke();
-
-                // Banda cruzada
-                ctx.beginPath();
-                ctx.moveTo(-r * 0.14, r * 0.14);
-                ctx.lineTo(r * 0.22, r * 0.58);
-                ctx.stroke();
-
-                // Cabeza y morrión
+                // Cabeza / yelmo redondeado
                 ctx.save();
-                ctx.translate(0, -r * 0.18 + breath);
-                ctx.fillStyle = skinTone;
+                ctx.translate(0, -r * 0.16 + breath);
+                ctx.fillStyle = bodyMain;
                 ctx.beginPath();
-                ctx.arc(0, 0, r * 0.2, 0, Math.PI * 2);
+                ctx.arc(0, 0, r * 0.24, 0, Math.PI * 2);
                 ctx.fill();
                 ctx.stroke();
 
+                // Ojos y sonrisa decidida
                 ctx.fillStyle = outline;
                 ctx.beginPath();
-                ctx.arc(-r * 0.07, 0, r * 0.03, 0, Math.PI * 2);
-                ctx.arc(r * 0.07, 0, r * 0.03, 0, Math.PI * 2);
+                ctx.arc(-r * 0.08, -r * 0.02, r * 0.032, 0, Math.PI * 2);
+                ctx.arc(r * 0.08, -r * 0.02, r * 0.032, 0, Math.PI * 2);
                 ctx.fill();
 
-                // Morrión cilíndrico
-                ctx.fillStyle = bodyMain;
-                ctx.fillRect(-r * 0.22, -r * 0.44, r * 0.44, r * 0.26);
-                ctx.strokeRect(-r * 0.22, -r * 0.44, r * 0.44, r * 0.26);
+                ctx.beginPath();
+                ctx.arc(0, r * 0.06, r * 0.07, 0.15 * Math.PI, 0.85 * Math.PI);
+                ctx.stroke();
                 ctx.restore();
 
-                // Arma al hombro diagonal
+                // Lanza a la izquierda
                 ctx.save();
-                ctx.translate(0, r * 0.16);
-                ctx.rotate(-0.45 - attackProgress * 0.9);
+                ctx.translate(-r * 0.28, r * 0.16);
+                ctx.rotate(-0.12 - attackProgress * 0.7);
                 ctx.beginPath();
-                ctx.moveTo(-r * 0.56, r * 0.15);
-                ctx.lineTo(r * 0.56, -r * 0.22);
+                ctx.moveTo(0, r * 0.56);
+                ctx.lineTo(0, -r * 0.56);
+                ctx.stroke();
+                ctx.fillStyle = goldTrim;
+                ctx.beginPath();
+                ctx.moveTo(-r * 0.08, -r * 0.52);
+                ctx.lineTo(0, -r * 0.76);
+                ctx.lineTo(r * 0.08, -r * 0.52);
+                ctx.closePath();
+                ctx.fill();
                 ctx.stroke();
                 ctx.restore();
-            }
 
-            // Rayado dinámico de tinta: da volumen sin perder la lectura de la silueta.
-            ctx.save();
-            ctx.globalAlpha = hitFlash > 0 ? 0.18 : 0.34;
-            ctx.strokeStyle = isWhite ? '#777777' : '#BEBEB8';
-            ctx.lineWidth = Math.max(0.8, size * 0.012);
-            ctx.lineCap = 'square';
-            const hatchPhase = Math.sin(globalTime * 0.8 + idleSeed) * size * 0.025;
-            for (let h = -2; h <= 2; h++) {
-                const hy = r * (0.25 + h * 0.11) + hatchPhase;
+                // Escudo a la derecha
+                ctx.fillStyle = bodyShade;
                 ctx.beginPath();
-                ctx.moveTo(-r * 0.28 + h * r * 0.025, hy);
-                ctx.lineTo(-r * 0.08 + h * r * 0.025, hy - r * 0.12);
-                ctx.stroke();
-                ctx.beginPath();
-                ctx.moveTo(r * 0.08 + h * r * 0.025, hy);
-                ctx.lineTo(r * 0.28 + h * r * 0.025, hy - r * 0.12);
+                ctx.moveTo(r * 0.08, r * 0.16);
+                ctx.lineTo(r * 0.44, r * 0.16);
+                ctx.lineTo(r * 0.41, r * 0.52);
+                ctx.lineTo(r * 0.26, r * 0.64);
+                ctx.lineTo(r * 0.11, r * 0.52);
+                ctx.closePath();
+                ctx.fill();
                 ctx.stroke();
             }
-            ctx.restore();
 
             ctx.restore();
         }
@@ -1529,8 +1525,8 @@
                 selectedSquare = clickedSq;
                 validMoves = chess.moves({ square: clickedSq, verbose: true });
                 const selected = squareToCoords(clickedSq);
-                const rectSize = container.getBoundingClientRect().width / 8;
-                spawnParticles((selected.col + 0.5) * rectSize, (selected.row + 0.5) * rectSize, '#E5A853', 12, 0.7, 'spark');
+                const sqSize = container.getBoundingClientRect().width / 8;
+                spawnParticles((selected.col + 0.5) * sqSize, (selected.row + 0.5) * sqSize, '#E5A853', 12, 0.7, 'spark');
                 addImpactRing(selected.col, selected.row, '#E5A853');
                 playSound('select');
             } else {
