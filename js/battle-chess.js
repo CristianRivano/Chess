@@ -33,6 +33,7 @@
         let globalTime = 0;
         let moveTrails = [];
         let impactRings = [];
+        let inkSilhouettes = [];
         let victoryState = null;
         let ambientEmbers = Array.from({ length: 34 }, (_, i) => ({
             seed: i * 17.31,
@@ -183,7 +184,9 @@
                     decay: 0.02 + Math.random() * 0.025,
                     type,
                     angle: angle,
-                    length: type === 'ink' ? 5 + Math.random() * 12 : 0
+                    length: type === 'ink' || type === 'brush' ? 5 + Math.random() * 12 : 0,
+                    gravity: type === 'droplet' ? 0.08 : (type === 'smoke' ? -0.012 : 0),
+                    rotation: Math.random() * Math.PI * 2
                 });
             }
         }
@@ -210,6 +213,11 @@
 
         function addImpactRing(col, row, color = '#E5A853') {
             impactRings.push({ col, row, color, progress: 0, life: 1 });
+        }
+
+        function spawnInkSilhouette(col, row, piece, color) {
+            inkSilhouettes.push({ col, row, piece, color, life: 1, scale: 0.72 });
+            if (inkSilhouettes.length > 3) inkSilhouettes.shift();
         }
 
         function findKingSquare(color) {
@@ -296,6 +304,8 @@
                 const p = particles[i];
                 p.x += p.vx;
                 p.y += p.vy;
+                p.vy += p.gravity || 0;
+                if (p.type === 'smoke') p.size += 0.08;
                 p.alpha -= p.decay;
                 if (p.alpha <= 0) particles.splice(i, 1);
             }
@@ -316,6 +326,11 @@
                 impactRings[i].life = Math.max(0, 1 - impactRings[i].progress);
                 if (impactRings[i].progress >= 1) impactRings.splice(i, 1);
             }
+            for (let i = inkSilhouettes.length - 1; i >= 0; i--) {
+                inkSilhouettes[i].life -= dt * 1.35;
+                inkSilhouettes[i].scale += dt * 0.42;
+                if (inkSilhouettes[i].life <= 0) inkSilhouettes.splice(i, 1);
+            }
 
             if (!activeAnim) return;
 
@@ -334,7 +349,13 @@
                     const curX = (activeAnim.fromCol + (activeAnim.toCol - activeAnim.fromCol) * activeAnim.progress + 0.5) * sqSize;
                     const curY = (activeAnim.fromRow + (activeAnim.toRow - activeAnim.fromRow) * activeAnim.progress + 0.75) * sqSize;
                     spawnParticles(curX, curY, 'rgba(253, 243, 231, 0.45)', 4, 0.5, 'dust');
-                    spawnParticles(curX, curY, activeAnim.moveObj.color === 'w' ? 'rgba(25, 25, 25, 0.72)' : 'rgba(235, 235, 228, 0.72)', 5, 0.62, 'ink');
+                    const moveInk = activeAnim.moveObj.piece === 'q'
+                        ? 'rgba(229, 168, 83, 0.88)'
+                        : (activeAnim.moveObj.color === 'w' ? 'rgba(15, 15, 15, 0.78)' : 'rgba(238, 238, 232, 0.78)');
+                    spawnParticles(curX, curY, moveInk, 5, 0.62, 'ink');
+                    if (activeAnim.moveObj.piece === 'n') {
+                        spawnParticles(curX, curY, activeAnim.moveObj.color === 'w' ? 'rgba(20,20,20,0.65)' : 'rgba(245,245,238,0.72)', 4, 0.85, 'brush');
+                    }
                 }
 
                 if (activeAnim.progress >= stopTarget) {
@@ -372,9 +393,11 @@
                     triggerShake(10);
                     addImpactRing(activeAnim.toCol, activeAnim.toRow,
                         pType === 'b' || pType === 'q' ? '#E5A853' : '#FDF3E7');
-                    spawnParticles(impactX, impactY,
-                        activeAnim.moveObj.color === 'w' ? 'rgba(10, 10, 10, 0.92)' : 'rgba(245, 245, 238, 0.9)',
-                        20, 1.2, 'ink');
+                    const inkColor = activeAnim.moveObj.color === 'w' ? 'rgba(10, 10, 10, 0.92)' : 'rgba(245, 245, 238, 0.9)';
+                    spawnParticles(impactX, impactY, inkColor, 20, 1.2, 'ink');
+                    spawnParticles(impactX, impactY, inkColor, 14, 1.45, 'droplet');
+                    spawnParticles(impactX, impactY, 'rgba(35, 35, 35, 0.32)', 12, 0.5, 'smoke');
+                    spawnInkSilhouette(activeAnim.toCol, activeAnim.toRow, activeAnim.moveObj.captured, activeAnim.moveObj.color === 'w' ? 'rgba(15,15,15,0.82)' : 'rgba(245,245,238,0.72)');
                 }
 
                 if (activeAnim.clashProgress >= 0.5) {
@@ -403,6 +426,7 @@
                     const sqSize = container.getBoundingClientRect().width / 8;
                     addImpactRing(king.col, king.row, '#F05D5E');
                     addImpactRing(king.col, king.row, '#F8B4B4');
+                    spawnParticles((king.col + 0.5) * sqSize, (king.row + 0.5) * sqSize, 'rgba(220, 38, 38, 0.9)', 22, 1.1, 'ink');
                     spawnFloatingText((king.col + 0.5) * sqSize,
                         (king.row + 0.25) * sqSize,
                         chess.in_checkmate() ? '¡JAQUE MATE!' : '¡JAQUE!', '#F8B4B4');
@@ -420,8 +444,11 @@
                     'rgba(253, 243, 231, 0.5)', 8, 0.55, 'dust');
                 spawnParticles((target.col + 0.5) * sqSize,
                     (target.row + 0.68) * sqSize,
-                    moveObj.color === 'w' ? 'rgba(15, 15, 15, 0.9)' : 'rgba(245, 245, 238, 0.82)',
+                    moveObj.piece === 'q' ? 'rgba(229, 168, 83, 0.95)' : (moveObj.color === 'w' ? 'rgba(15, 15, 15, 0.9)' : 'rgba(245, 245, 238, 0.82)'),
                     12, 0.8, 'ink');
+                spawnParticles((target.col + 0.5) * sqSize, (target.row + 0.68) * sqSize,
+                    moveObj.piece === 'q' ? 'rgba(229, 168, 83, 0.55)' : 'rgba(20,20,20,0.48)',
+                    1, 0.12, 'stain');
             }
 
             lastMove = { from: moveObj.from, to: moveObj.to };
@@ -670,6 +697,31 @@
                 );
             }
 
+            for (const ghost of inkSilhouettes) {
+                const gx = (ghost.col + 0.5) * sqSize;
+                const gy = (ghost.row + 0.5) * sqSize;
+                ctx.save();
+                ctx.globalAlpha = ghost.life * 0.62;
+                ctx.translate(gx, gy - sqSize * 0.05);
+                ctx.scale(ghost.scale, ghost.scale);
+                ctx.fillStyle = ghost.color;
+                ctx.strokeStyle = ghost.color;
+                ctx.lineWidth = Math.max(2, sqSize * 0.028);
+                ctx.shadowColor = ghost.color;
+                ctx.shadowBlur = sqSize * 0.16;
+                ctx.beginPath();
+                ctx.ellipse(0, sqSize * 0.28, sqSize * 0.24, sqSize * 0.09, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.moveTo(-sqSize * 0.2, sqSize * 0.25);
+                ctx.quadraticCurveTo(-sqSize * 0.16, -sqSize * 0.18, 0, -sqSize * 0.32);
+                ctx.quadraticCurveTo(sqSize * 0.16, -sqSize * 0.18, sqSize * 0.2, sqSize * 0.25);
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+                ctx.restore();
+            }
+
             for (const ring of impactRings) {
                 const rx = (ring.col + 0.5) * sqSize;
                 const ry = (ring.row + 0.5) * sqSize;
@@ -689,10 +741,10 @@
                 ctx.save();
                 ctx.globalAlpha = Math.max(0, p.alpha);
                 ctx.fillStyle = p.color;
-                if (p.type === 'ink') {
+                if (p.type === 'ink' || p.type === 'brush') {
                     // Trazos de pincel y gotas: la tinta conserva dirección y velocidad.
                     ctx.strokeStyle = p.color;
-                    ctx.lineWidth = Math.max(1, p.size * 0.72);
+                    ctx.lineWidth = Math.max(1, p.size * (p.type === 'brush' ? 0.45 : 0.72));
                     ctx.lineCap = 'round';
                     ctx.beginPath();
                     ctx.moveTo(p.x, p.y);
@@ -701,6 +753,20 @@
                     ctx.globalAlpha *= 0.82;
                     ctx.beginPath();
                     ctx.arc(p.x, p.y, Math.max(1.2, p.size * 0.7), 0, Math.PI * 2);
+                    ctx.fill();
+                } else if (p.type === 'droplet') {
+                    ctx.beginPath();
+                    ctx.ellipse(p.x, p.y, Math.max(1.5, p.size * 0.7), Math.max(2, p.size * 1.35), p.angle, 0, Math.PI * 2);
+                    ctx.fill();
+                } else if (p.type === 'smoke') {
+                    ctx.globalAlpha *= 0.55;
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, Math.max(2, p.size * 1.4), 0, Math.PI * 2);
+                    ctx.fill();
+                } else if (p.type === 'stain') {
+                    ctx.globalAlpha *= 0.8;
+                    ctx.beginPath();
+                    ctx.ellipse(p.x, p.y, p.size * 3.2, p.size * 1.3, 0, 0, Math.PI * 2);
                     ctx.fill();
                 } else {
                     ctx.beginPath();
@@ -1535,6 +1601,7 @@
             floatingTexts = [];
             moveTrails = [];
             impactRings = [];
+            inkSilhouettes = [];
             victoryState = null;
             rapidStarted = false;
             rapidClock = { w: 180, b: 180 };
