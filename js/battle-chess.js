@@ -60,10 +60,25 @@
             b: { k: '♚', q: '♛', r: '♜', b: '♝', n: '♞', p: '♟' }
         };
 
+        const FACTION_PARTICLES = {
+            w: { ink: 'rgba(18, 18, 18, 0.90)', brush: 'rgba(45, 45, 45, 0.68)', spark: '#F4F1E7', accent: '#D6C4A8' },
+            b: { ink: 'rgba(246, 244, 232, 0.92)', brush: 'rgba(224, 218, 198, 0.72)', spark: '#E5A853', accent: '#C9863B' }
+        };
+
+        const BREATHING_PROFILES = {
+            p: { rate: 3.8, amp: 0.010, stride: 0.07 },
+            n: { rate: 2.7, amp: 0.016, stride: 0.18 },
+            b: { rate: 2.2, amp: 0.022, stride: 0.14 },
+            r: { rate: 1.45, amp: 0.012, stride: 0.14 },
+            q: { rate: 1.8, amp: 0.026, stride: 0.14 },
+            k: { rate: 1.25, amp: 0.030, stride: 0.14 }
+        };
+
         // ============================================================================
         // SINTETIZADOR DE EFECTOS DE SONIDO (TONE.JS - SIN ARCHIVOS EXTERNOS)
         // ============================================================================
         let synthMove, synthSlash, synthMagic, synthExplosion, synthSelect, synthPaper, synthInk;
+        let synthCombat, synthMate;
 
         function initAudio() {
             if (audioInitialized) return;
@@ -114,6 +129,19 @@
                 }).toDestination();
                 synthInk.volume.value = -11;
 
+                synthCombat = new Tone.MembraneSynth({
+                    pitchDecay: 0.035,
+                    octaves: 3,
+                    envelope: { attack: 0.004, decay: 0.18, sustain: 0.02, release: 0.08 }
+                }).toDestination();
+                synthCombat.volume.value = -8;
+
+                synthMate = new Tone.PolySynth(Tone.Synth, {
+                    oscillator: { type: 'fatsawtooth' },
+                    envelope: { attack: 0.015, decay: 0.25, sustain: 0.18, release: 0.5 }
+                }).toDestination();
+                synthMate.volume.value = -10;
+
                 audioInitialized = true;
             } catch (e) {
                 console.warn('Audio no disponible aún:', e);
@@ -145,6 +173,19 @@
                 if (type === 'check') {
                     synthMagic.triggerAttackRelease(checkAlarmLevel > 1 ? 'G5' : 'E5', '16n', now);
                     synthMagic.triggerAttackRelease('C5', '32n', now + 0.11);
+                }
+                if (type === 'combat-rook') synthCombat.triggerAttackRelease('C1', '8n', now);
+                if (type === 'combat-knight') synthCombat.triggerAttackRelease('G2', '16n', now);
+                if (type === 'combat-bishop') synthMagic.triggerAttackRelease('A4', '16n', now);
+                if (type === 'combat-queen') {
+                    synthMagic.triggerAttackRelease('E5', '16n', now);
+                    synthMagic.triggerAttackRelease('B5', '16n', now + 0.08);
+                }
+                if (type === 'combat-king') synthCombat.triggerAttackRelease('F1', '8n', now);
+                if (type === 'combat-pawn') synthSlash.triggerAttackRelease('32n', now);
+                if (type === 'mate') {
+                    synthMate.triggerAttackRelease(['C4', 'G4', 'C5'], '2n', now);
+                    synthMate.triggerAttackRelease(['E4', 'B4', 'E5'], '2n', now + 0.18);
                 }
             } catch (e) {}
         }
@@ -265,6 +306,18 @@
                 }
             }
             return null;
+        }
+
+        function spawnFactionParticles(x, y, faction, kind = 'ink', count = 8, speed = 0.8) {
+            const palette = FACTION_PARTICLES[faction] || FACTION_PARTICLES.w;
+            const color = kind === 'brush' ? palette.brush : kind === 'spark' ? palette.spark : palette.ink;
+            spawnParticles(x, y, color, count, speed, kind);
+        }
+
+        function playCombatSound(pieceType, isMate = false) {
+            if (isMate) return playSound('mate');
+            const sounds = { r: 'combat-rook', n: 'combat-knight', b: 'combat-bishop', q: 'combat-queen', k: 'combat-king', p: 'combat-pawn' };
+            playSound(sounds[pieceType] || 'combat-pawn');
         }
 
         function showCombatBanner(text) {
@@ -392,9 +445,12 @@
                     const moveInk = activeAnim.moveObj.piece === 'q'
                         ? 'rgba(229, 168, 83, 0.88)'
                         : (activeAnim.moveObj.color === 'w' ? 'rgba(15, 15, 15, 0.78)' : 'rgba(238, 238, 232, 0.78)');
-                    spawnParticles(curX, curY, moveInk, 5, 0.62, 'ink');
+                    spawnFactionParticles(curX, curY, activeAnim.moveObj.color, 'ink', 5, 0.62);
                     if (activeAnim.moveObj.piece === 'n') {
-                        spawnParticles(curX, curY, activeAnim.moveObj.color === 'w' ? 'rgba(20,20,20,0.65)' : 'rgba(245,245,238,0.72)', 4, 0.85, 'brush');
+                        spawnFactionParticles(curX, curY, activeAnim.moveObj.color, 'brush', 5, 0.85);
+                    }
+                    if (activeAnim.moveObj.piece === 'q') {
+                        spawnParticles(curX, curY, '#E5A853', 4, 0.72, 'spark');
                     }
                 }
 
@@ -416,6 +472,7 @@
                     const pType = activeAnim.moveObj.piece;
 
                     playSound('ink');
+                    playCombatSound(pType);
                     if (pType === 'b' || pType === 'q') {
                         playSound('magic');
                         spawnParticles(impactX, impactY, '#E5A853', 28, 1.5);
@@ -470,7 +527,10 @@
                     const attackerCount = countAttackers(kingSq, moveObj.color);
                     checkAlarmLevel = chess.in_checkmate() || attackerCount > 1 ? 2 : 1;
                     playSound('check');
-                    if (chess.in_checkmate()) battleFreeze = 0.9;
+                    if (chess.in_checkmate()) {
+                        playCombatSound(moveObj.piece, true);
+                        battleFreeze = 0.9;
+                    }
                     spawnFloatingText((king.col + 0.5) * sqSize,
                         (king.row + 0.25) * sqSize,
                         chess.in_checkmate() ? '¡JAQUE MATE!' : '¡JAQUE!', '#F8B4B4');
@@ -926,16 +986,9 @@
             ctx.save();
             ctx.globalAlpha = alpha;
 
-            const breathing = {
-                p: { rate: 3.8, amp: 0.010 },
-                n: { rate: 2.7, amp: 0.016 },
-                b: { rate: 2.2, amp: 0.022 },
-                r: { rate: 1.45, amp: 0.012 },
-                q: { rate: 1.8, amp: 0.026 },
-                k: { rate: 1.25, amp: 0.030 }
-            }[piece.type] || { rate: 2.4, amp: 0.018 };
+            const breathing = BREATHING_PROFILES[piece.type] || { rate: 2.4, amp: 0.018, stride: 0.14 };
             const breath = Math.sin(globalTime * breathing.rate + cx * 0.1 + idleSeed) * size * breathing.amp;
-            const stepAmount = piece.type === 'p' ? 0.07 : (piece.type === 'n' ? 0.18 : 0.14);
+            const stepAmount = breathing.stride;
             const stepBounce = Math.abs(Math.sin(walkCycle * Math.PI * 2)) * (size * stepAmount);
             const idleWave = Math.sin(globalTime * 1.7 + idleSeed) * size * 0.012;
             const idleTilt = Math.sin(globalTime * 1.25 + idleSeed) * 0.018;
