@@ -35,6 +35,8 @@
         let impactRings = [];
         let inkSilhouettes = [];
         let victoryState = null;
+        let battleFreeze = 0;
+        let checkAlarmLevel = 0;
         let ambientEmbers = Array.from({ length: 34 }, (_, i) => ({
             seed: i * 17.31,
             x: (i * 0.6180339887) % 1,
@@ -140,6 +142,10 @@
                     synthInk.triggerAttackRelease('32n', now);
                     synthInk.triggerAttackRelease('64n', now + 0.035);
                 }
+                if (type === 'check') {
+                    synthMagic.triggerAttackRelease(checkAlarmLevel > 1 ? 'G5' : 'E5', '16n', now);
+                    synthMagic.triggerAttackRelease('C5', '32n', now + 0.11);
+                }
             } catch (e) {}
         }
 
@@ -218,6 +224,35 @@
         function spawnInkSilhouette(col, row, piece, color) {
             inkSilhouettes.push({ col, row, piece, color, life: 1, scale: 0.72 });
             if (inkSilhouettes.length > 3) inkSilhouettes.shift();
+        }
+
+        function countAttackers(targetSquare, attackerColor) {
+            const target = squareToCoords(targetSquare);
+            const board = chess.board();
+            let count = 0;
+            const clearRay = (fromCol, fromRow, dc, dr) => {
+                let col = fromCol + dc, row = fromRow + dr;
+                while (col >= 0 && col < 8 && row >= 0 && row < 8) {
+                    if (col === target.col && row === target.row) return true;
+                    if (board[row][col]) return false;
+                    col += dc; row += dr;
+                }
+                return false;
+            };
+            for (let row = 0; row < 8; row++) for (let col = 0; col < 8; col++) {
+                const piece = board[row][col];
+                if (!piece || piece.color !== attackerColor) continue;
+                const dc = target.col - col, dr = target.row - row;
+                const adx = Math.abs(dc), ady = Math.abs(dr);
+                let attacks = false;
+                if (piece.type === 'n') attacks = (adx === 1 && ady === 2) || (adx === 2 && ady === 1);
+                if (piece.type === 'k') attacks = adx <= 1 && ady <= 1 && (adx + ady > 0);
+                if (piece.type === 'p') attacks = ady === 1 && adx === 1 && dr === (attackerColor === 'w' ? -1 : 1);
+                if (piece.type === 'b' || piece.type === 'q') attacks = adx === ady && adx > 0 && clearRay(col, row, Math.sign(dc), Math.sign(dr));
+                if (piece.type === 'r' || piece.type === 'q') attacks = attacks || ((dc === 0 || dr === 0) && (dc !== 0 || dr !== 0) && clearRay(col, row, Math.sign(dc), Math.sign(dr)));
+                if (attacks) count++;
+            }
+            return count;
         }
 
         function findKingSquare(color) {
@@ -332,17 +367,22 @@
                 if (inkSilhouettes[i].life <= 0) inkSilhouettes.splice(i, 1);
             }
 
+            if (battleFreeze > 0) {
+                battleFreeze = Math.max(0, battleFreeze - dt);
+                return;
+            }
             if (!activeAnim) return;
 
             const rect = container.getBoundingClientRect();
+            const battleDt = activeAnim.isCapture ? dt * 0.58 : dt;
             const sqSize = rect.width / 8;
 
             if (activeAnim.phase === 'approach') {
                 const speed = activeAnim.isCapture ? 2.2 : 2.8;
                 const stopTarget = activeAnim.isCapture ? 0.78 : 1.0;
-                activeAnim.progress = Math.min(stopTarget, activeAnim.progress + dt * speed);
+                activeAnim.progress = Math.min(stopTarget, activeAnim.progress + battleDt * speed);
 
-                activeAnim.stepTimer += dt;
+                activeAnim.stepTimer += battleDt;
                 if (activeAnim.stepTimer >= 0.14) {
                     activeAnim.stepTimer = 0;
                     playSound('step');
@@ -367,7 +407,7 @@
                     }
                 }
             } else if (activeAnim.phase === 'clash') {
-                activeAnim.clashProgress += dt * 1.9;
+                activeAnim.clashProgress += battleDt * 1.9;
 
                 if (activeAnim.clashProgress >= 0.45 && !activeAnim.soundPlayed) {
                     activeAnim.soundPlayed = true;
@@ -427,11 +467,17 @@
                     addImpactRing(king.col, king.row, '#F05D5E');
                     addImpactRing(king.col, king.row, '#F8B4B4');
                     spawnParticles((king.col + 0.5) * sqSize, (king.row + 0.5) * sqSize, 'rgba(220, 38, 38, 0.9)', 22, 1.1, 'ink');
+                    const attackerCount = countAttackers(kingSq, moveObj.color);
+                    checkAlarmLevel = chess.in_checkmate() || attackerCount > 1 ? 2 : 1;
+                    playSound('check');
+                    if (chess.in_checkmate()) battleFreeze = 0.9;
                     spawnFloatingText((king.col + 0.5) * sqSize,
                         (king.row + 0.25) * sqSize,
                         chess.in_checkmate() ? '¡JAQUE MATE!' : '¡JAQUE!', '#F8B4B4');
                     triggerShake(chess.in_checkmate() ? 12 : 6);
-                    showCombatBanner(chess.in_checkmate() ? '¡El rey ha sido acorralado!' : '¡JAQUE! El rey está bajo ataque');
+                    showCombatBanner(chess.in_checkmate()
+                        ? `¡${PIECE_NAMES[moveObj.piece] || 'La pieza atacante'} da el golpe final!`
+                        : (attackerCount > 1 ? '¡JAQUE DOBLE! Dos fuerzas cercan al rey' : '¡JAQUE! El rey está bajo ataque'));
                     if (chess.in_checkmate()) {
                         victoryState = { square: moveObj.to, color: moveObj.color, type: moveObj.piece };
                     }
@@ -499,6 +545,52 @@
             executeAnimatedMove(chosen);
         }
 
+        function drawCombatSignature(ctx, anim, sqSize) {
+            if (!anim || !anim.isCapture || anim.phase !== 'clash') return;
+            const x = (anim.toCol + 0.5) * sqSize;
+            const y = (anim.toRow + 0.5) * sqSize;
+            const p = Math.sin(anim.clashProgress * Math.PI);
+            const type = anim.moveObj.piece;
+            ctx.save();
+            ctx.globalAlpha = p * 0.9;
+            ctx.translate(x, y);
+            ctx.strokeStyle = type === 'q' ? '#E5A853' : '#F5F5EE';
+            ctx.fillStyle = ctx.strokeStyle;
+            ctx.lineWidth = Math.max(2, sqSize * 0.026);
+            ctx.lineCap = 'round';
+            if (type === 'r') {
+                ctx.beginPath(); ctx.arc(0, sqSize * 0.3, sqSize * (0.2 + p * 0.38), 0, Math.PI * 2); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(-sqSize*.3, sqSize*.23); ctx.lineTo(sqSize*.3, sqSize*.23); ctx.stroke();
+            } else if (type === 'n') {
+                ctx.rotate(-0.5 + p * 1.1);
+                ctx.beginPath(); ctx.arc(0, 0, sqSize*.38, -1.2, 1.2); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(-sqSize*.25, -sqSize*.2); ctx.lineTo(sqSize*.28, sqSize*.2); ctx.stroke();
+            } else if (type === 'b') {
+                ctx.rotate(-0.75);
+                for (let i = -1; i <= 1; i++) { ctx.beginPath(); ctx.moveTo(i*sqSize*.08, 0); ctx.lineTo(i*sqSize*.48, -sqSize*.52); ctx.stroke(); }
+            } else if (type === 'q') {
+                ctx.beginPath();
+                ctx.moveTo(-sqSize*.42, -sqSize*.05); ctx.lineTo(-sqSize*.25, -sqSize*.38); ctx.lineTo(0, -sqSize*.12); ctx.lineTo(sqSize*.25, -sqSize*.38); ctx.lineTo(sqSize*.42, -sqSize*.05);
+                ctx.stroke();
+                ctx.beginPath(); ctx.arc(0, 0, sqSize*(.18+p*.25), 0, Math.PI*2); ctx.stroke();
+            } else if (type === 'k') {
+                ctx.rotate(-0.45 + p * 0.9);
+                ctx.beginPath(); ctx.moveTo(0, -sqSize*.48); ctx.lineTo(0, sqSize*.42); ctx.stroke();
+                ctx.beginPath(); ctx.arc(0, -sqSize*.5, sqSize*.08, 0, Math.PI*2); ctx.fill();
+            } else {
+                ctx.rotate(-0.35);
+                ctx.beginPath(); ctx.moveTo(-sqSize*.38, sqSize*.28); ctx.lineTo(sqSize*.4, -sqSize*.35); ctx.stroke();
+            }
+            // Contraataque visual: destellos cruzados desde la pieza capturada.
+            ctx.strokeStyle = '#F05D5E';
+            ctx.globalAlpha = p * 0.62;
+            for (let i = 0; i < 3; i++) {
+                const a = i * Math.PI / 3 + anim.clashProgress * 2;
+                ctx.beginPath(); ctx.moveTo(Math.cos(a)*sqSize*.12, Math.sin(a)*sqSize*.12); ctx.lineTo(Math.cos(a)*sqSize*.42, Math.sin(a)*sqSize*.42); ctx.stroke();
+            }
+            ctx.restore();
+        }
+
         function render() {
             const rect = container.getBoundingClientRect();
             const size = rect.width;
@@ -564,6 +656,23 @@
                 }
             }
 
+            if (!activeAnim && chess.in_check() && lastMove) {
+                const kingSq = findKingSquare(chess.turn());
+                if (kingSq) {
+                    const from = squareToCoords(lastMove.to), king = squareToCoords(kingSq);
+                    ctx.save();
+                    ctx.globalAlpha = 0.55 + (Math.sin(globalTime * 6) + 1) * 0.12;
+                    ctx.strokeStyle = '#F05D5E';
+                    ctx.fillStyle = '#F05D5E';
+                    ctx.lineWidth = Math.max(2, sqSize * 0.026);
+                    const ax = (from.col+.5)*sqSize, ay=(from.row+.5)*sqSize, bx=(king.col+.5)*sqSize, by=(king.row+.5)*sqSize;
+                    ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke();
+                    const ang = Math.atan2(by-ay, bx-ax);
+                    ctx.beginPath(); ctx.moveTo(bx,by); ctx.lineTo(bx-Math.cos(ang-.45)*sqSize*.2, by-Math.sin(ang-.45)*sqSize*.2); ctx.lineTo(bx-Math.cos(ang+.45)*sqSize*.2, by-Math.sin(ang+.45)*sqSize*.2); ctx.closePath(); ctx.fill();
+                    ctx.restore();
+                }
+            }
+
             // Bruma de brasas y energía que mantiene vivo el campo de batalla
             ctx.save();
             ctx.globalCompositeOperation = 'screen';
@@ -604,13 +713,15 @@
                     const cy = (row + 0.5) * sqSize;
 
                     if (m.captured) {
-                        ctx.strokeStyle = '#E5A853';
+                        ctx.strokeStyle = chess.in_check() ? '#F05D5E' : '#E5A853';
                         ctx.lineWidth = 3.5;
                         ctx.beginPath();
                         ctx.arc(cx, cy, sqSize * 0.38 + Math.sin(globalTime * 6) * 2, 0, Math.PI * 2);
                         ctx.stroke();
                     } else {
-                        ctx.fillStyle = 'rgba(201, 134, 59, 0.78)';
+                        ctx.fillStyle = chess.in_check()
+                            ? `rgba(240, 93, 94, ${0.42 + (Math.sin(globalTime * 8) + 1) * 0.16})`
+                            : 'rgba(201, 134, 59, 0.78)';
                         ctx.beginPath();
                         ctx.arc(cx, cy, sqSize * 0.15, 0, Math.PI * 2);
                         ctx.fill();
@@ -635,6 +746,7 @@
                         facing: piece.color === 'w' ? 1 : -1,
                         idleSeed: (col * 13 + row * 29) % 100,
                         square: sqName,
+                        inCheck: !activeAnim && chess.in_check() && piece.type === 'k' && piece.color === chess.turn(),
                         victoryPose: Boolean(victoryState && victoryState.square === sqName)
                     };
 
@@ -696,6 +808,8 @@
                     }
                 );
             }
+
+            drawCombatSignature(ctx, activeAnim, sqSize);
 
             for (const ghost of inkSilhouettes) {
                 const gx = (ghost.col + 0.5) * sqSize;
@@ -804,7 +918,8 @@
                 isSelected = false,
                 alpha = 1,
                 idleSeed = 0,
-                victoryPose = false
+                victoryPose = false,
+                inCheck = false
             } = state;
             const attackProgress = victoryPose ? 1 : rawAttackProgress;
 
@@ -824,7 +939,9 @@
             const stepBounce = Math.abs(Math.sin(walkCycle * Math.PI * 2)) * (size * stepAmount);
             const idleWave = Math.sin(globalTime * 1.7 + idleSeed) * size * 0.012;
             const idleTilt = Math.sin(globalTime * 1.25 + idleSeed) * 0.018;
-            const damageShake = hitFlash > 0 ? Math.sin(globalTime * 58 + idleSeed) * size * 0.045 : 0;
+            const damageShake = hitFlash > 0
+                ? Math.sin(globalTime * 58 + idleSeed) * size * 0.045
+                : (inCheck ? Math.sin(globalTime * 22 + idleSeed) * size * 0.028 : 0);
             const groundStomp = piece.type === 'r' && walkCycle > 0 ? Math.max(0, Math.sin(walkCycle * Math.PI * 2)) : 0;
             const tilt = Math.sin(walkCycle * Math.PI * 2) * (piece.type === 'p' ? 0.055 : 0.1) + idleTilt;
 
@@ -1603,6 +1720,8 @@
             impactRings = [];
             inkSilhouettes = [];
             victoryState = null;
+            battleFreeze = 0;
+            checkAlarmLevel = 0;
             rapidStarted = false;
             rapidClock = { w: 180, b: 180 };
             cameraZoom = { scale: 1, targetScale: 1, focusX: 0.5, focusY: 0.5 };
