@@ -353,7 +353,9 @@
                     color,
                     alpha: 1,
                     decay: 0.02 + Math.random() * 0.025,
-                    type
+                    type,
+                    angle: angle,
+                    length: type === 'ink' ? 5 + Math.random() * 12 : 0
                 });
             }
         }
@@ -504,6 +506,7 @@
                     const curX = (activeAnim.fromCol + (activeAnim.toCol - activeAnim.fromCol) * activeAnim.progress + 0.5) * sqSize;
                     const curY = (activeAnim.fromRow + (activeAnim.toRow - activeAnim.fromRow) * activeAnim.progress + 0.75) * sqSize;
                     spawnParticles(curX, curY, 'rgba(253, 243, 231, 0.45)', 4, 0.5, 'dust');
+                    spawnParticles(curX, curY, activeAnim.moveObj.color === 'w' ? 'rgba(25, 25, 25, 0.72)' : 'rgba(235, 235, 228, 0.72)', 5, 0.62, 'ink');
                 }
 
                 if (activeAnim.progress >= stopTarget) {
@@ -541,6 +544,9 @@
                     triggerShake(10);
                     addImpactRing(activeAnim.toCol, activeAnim.toRow,
                         pType === 'b' || pType === 'q' ? '#E5A853' : '#FDF3E7');
+                    spawnParticles(impactX, impactY,
+                        activeAnim.moveObj.color === 'w' ? 'rgba(10, 10, 10, 0.92)' : 'rgba(245, 245, 238, 0.9)',
+                        20, 1.2, 'ink');
                 }
 
                 if (activeAnim.clashProgress >= 0.5) {
@@ -581,6 +587,10 @@
                 spawnParticles((target.col + 0.5) * sqSize,
                     (target.row + 0.72) * sqSize,
                     'rgba(253, 243, 231, 0.5)', 8, 0.55, 'dust');
+                spawnParticles((target.col + 0.5) * sqSize,
+                    (target.row + 0.68) * sqSize,
+                    moveObj.color === 'w' ? 'rgba(15, 15, 15, 0.9)' : 'rgba(245, 245, 238, 0.82)',
+                    12, 0.8, 'ink');
             }
 
             lastMove = { from: moveObj.from, to: moveObj.to };
@@ -846,9 +856,24 @@
                 ctx.save();
                 ctx.globalAlpha = Math.max(0, p.alpha);
                 ctx.fillStyle = p.color;
-                ctx.beginPath();
-                ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-                ctx.fill();
+                if (p.type === 'ink') {
+                    // Trazos de pincel y gotas: la tinta conserva dirección y velocidad.
+                    ctx.strokeStyle = p.color;
+                    ctx.lineWidth = Math.max(1, p.size * 0.72);
+                    ctx.lineCap = 'round';
+                    ctx.beginPath();
+                    ctx.moveTo(p.x, p.y);
+                    ctx.lineTo(p.x - Math.cos(p.angle) * p.length, p.y - Math.sin(p.angle) * p.length);
+                    ctx.stroke();
+                    ctx.globalAlpha *= 0.82;
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, Math.max(1.2, p.size * 0.7), 0, Math.PI * 2);
+                    ctx.fill();
+                } else {
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                    ctx.fill();
+                }
                 ctx.restore();
             }
 
