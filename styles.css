@@ -78,16 +78,3 @@
             background-color: #662933;
             border-color: var(--color-accent-gold);
         }
-
-/* Panel modular de personalización */
-.settings-panel { box-shadow: 0 18px 40px rgba(0,0,0,.24); }
-.settings-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(155px, 1fr)); gap: .8rem; color: var(--color-text-muted); font-size: .75rem; }
-.settings-grid label { display: flex; flex-direction: column; gap: .35rem; font-weight: 700; }
-.settings-control { width: 100%; border: 1px solid rgba(229,168,83,.4); border-radius: .6rem; padding: .45rem .55rem; background: rgba(20,10,15,.35); color: var(--color-text-primary); }
-.settings-check { flex-direction: row !important; align-items: center; padding-top: 1.4rem; }
-.settings-check input { accent-color: var(--color-accent-gold); }
-body[data-theme="parchment"] { --color-bg-deep: #4A3423; --color-surface-card: #6A4A30; --color-accent-gold: #F3C969; --color-accent-saffron: #B7793D; --color-text-primary: #FFF7E8; }
-body[data-theme="midnight"] { --color-bg-deep: #101827; --color-surface-card: #1B2940; --color-accent-gold: #7DD3FC; --color-accent-saffron: #818CF8; --color-text-primary: #EFF6FF; }
-body[data-theme="parchment"] { background-image: radial-gradient(circle at top, #6A4A30 0%, #4A3423 70%, #2D1E16 100%); }
-body[data-theme="midnight"] { background-image: radial-gradient(circle at top, #26364D 0%, #101827 70%, #080D17 100%); }
-@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; } }
